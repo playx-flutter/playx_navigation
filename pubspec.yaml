@@ -7,7 +7,9 @@ issue_tracker: https://github.com/playx-flutter/playx_navigation/issues
 topics:
   - playx
   - navigation
-  - go_router
+  - deep-linking
+  - go-router
+  - route-management
 
 environment:
   sdk: ^3.5.0
