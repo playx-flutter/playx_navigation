@@ -10,7 +10,7 @@ import 'package:playx_navigation_example/products/products_page.dart';
 import 'home/home_binding.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 abstract class Routes {
