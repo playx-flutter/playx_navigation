@@ -15,7 +15,7 @@ class HomePage extends StatelessWidget {
       body: Center(
         child: Column(
           children: [
-            Text('Home'),
+            const Text('Home'),
             ElevatedButton(
               onPressed: () {
                 PlayxNavigation.toNamed(Routes.products);
