@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'routes/playx_router.dart';
@@ -279,4 +279,11 @@ abstract class PlayxNavigation {
         pathParameters: pathParameters,
         queryParameters: queryParameters,
       );
+
+  /// Gets the root navigator key for the application.
+  static GlobalKey<NavigatorState> get rootNavigatorKey =>
+      _router.rootNavigatorKey;
+
+  /// Gets the current [BuildContext] for the application's root navigator.
+  static BuildContext? get navigationContext => rootNavigatorKey.currentContext;
 }
