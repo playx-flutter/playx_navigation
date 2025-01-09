@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'routes/playx_router.dart';
+import 'router/playx_router.dart';
 
 /// An abstract class that provides static methods for navigating within the
 /// application using [GoRouter].
@@ -33,18 +33,21 @@ abstract class PlayxNavigation {
     _playxRouter = PlayxRouter(router: router);
   }
 
-  static void _listenToRouteChanges() {
-    print('Current route: ${currentRoute?.route.name}');
-  }
+  /// Returns the [GoRouter] instance used for navigation.
+  static GoRouter get goRouter => _router.router;
+
+  /// Gets the current [GoRouterState] object representing the current state of the
+  /// navigation stack.
+  static GoRouterState? get currentState => _router.state;
 
   /// Gets the current [RouteMatch] object representing the current route in the
   /// navigation stack.
-  static RouteMatch? get currentRoute => _router.currentRoute;
+  static GoRoute? get currentRoute => _router.currentRoute;
 
   /// Gets the name of the current route, if available.
   ///
   /// Returns `null` if there is no current route or if the route has no name.
-  static String? get currentRouteName => currentRoute?.route.name;
+  static String? get currentRouteName => currentRoute?.name;
 
   /// Adds a listener for route changes.
   ///
