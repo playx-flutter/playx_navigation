@@ -33,6 +33,10 @@ abstract class PlayxNavigation {
     _playxRouter = PlayxRouter(router: router);
   }
 
+  static void _listenToRouteChanges() {
+    print('Current route: ${currentRoute?.route.name}');
+  }
+
   /// Gets the current [RouteMatch] object representing the current route in the
   /// navigation stack.
   static RouteMatch? get currentRoute => _router.currentRoute;
@@ -224,6 +228,13 @@ abstract class PlayxNavigation {
     return _router.pop(result);
   }
 
+  /// Pops the top-most route off the navigation stack.
+  /// Returns `true` if the route was popped successfully.
+  /// Returns `false` if there are no routes to pop.
+  static bool maybePop<T extends Object?>([T? result]) {
+    return _router.maybePop(result);
+  }
+
   /// Returns `true` if there are two or more routes in the navigation stack that can be popped.
   ///
   /// Example usage:
@@ -286,4 +297,8 @@ abstract class PlayxNavigation {
 
   /// Gets the current [BuildContext] for the application's root navigator.
   static BuildContext? get navigationContext => rootNavigatorKey.currentContext;
+
+  void dispose() {
+    _playxRouter = null;
+  }
 }

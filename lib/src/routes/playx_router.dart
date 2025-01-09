@@ -175,6 +175,15 @@ class PlayxRouter {
     return router.pop(result);
   }
 
+  /// Pops the top-most route off the navigation stack.
+  bool maybePop<T extends Object?>([T? result]) {
+    if (canPop()) {
+      router.pop(result);
+      return true;
+    }
+    return false;
+  }
+
   /// Returns `true` if there is at least two or more route can be pop.
   bool canPop() => router.canPop();
 
