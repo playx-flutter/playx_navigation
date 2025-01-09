@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
 import '../models/playx_page_configuration.dart';
@@ -90,11 +91,18 @@ class PlayxRoute extends GoRoute {
             if (redirect != null) {
               return redirect(context, state);
             }
+            if (binding == null) return null;
+
             final topRoute = state.topRoute;
             // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
             if (topRoute == null || path == topRoute.path) {
-              binding?.shouldExecuteOnExit = false;
-              binding?.onEnter(context, state);
+              binding.shouldExecuteOnExit = false;
+              print('Splash Navigation enter: ${topRoute?.path}');
+              if (binding.isHidden) {
+                binding.onReEnter(context, state);
+              } else {
+                binding.onEnter(context, state);
+              }
             } else {}
             return null;
           },
@@ -111,7 +119,9 @@ class PlayxRoute extends GoRoute {
           pageBuilder: (ctx, state) {
             return transition.buildPage(
               config: pageConfiguration,
-              child: builder(ctx, state),
+              child: binding == null
+                  ? builder(ctx, state)
+                  : PlayxPage(binding: binding, child: builder(ctx, state)),
               state: state,
             );
           },

@@ -46,7 +46,7 @@ class PlayxNavigationBuilder extends StatefulWidget {
 }
 
 class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
-  RouteMatch? _currentRoute;
+  GoRoute? _currentRoute;
 
   @override
   void initState() {
@@ -71,13 +71,19 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
   void listenToRouteChanges() {
     final currentRoute = PlayxNavigation.currentRoute;
 
-    final previousRoute = _currentRoute?.route;
+    final previousRoute = _currentRoute;
     if (previousRoute is PlayxRoute) {
-      if (previousRoute.binding != null &&
-          previousRoute.binding!.shouldExecuteOnExit) {
-        previousRoute.binding!.onExit(
+      final binding = previousRoute.binding;
+      if (binding == null) {
+        _currentRoute = currentRoute;
+        return;
+      }
+      final isHidden = binding.isHidden;
+      if (!isHidden) {
+        binding.onHidden(
           context,
         );
+        binding.isHidden = true;
       }
     }
 
