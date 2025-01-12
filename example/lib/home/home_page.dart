@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:playx_navigation/playx_navigation.dart';
+import 'package:playx_navigation_example/navigation/routes.dart';
 
-import '../main.dart';
-
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,5 +30,17 @@ class HomePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // print('PlayxNavigation: Home onInit');
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    // print('PlayxNavigation: Home onDispose');
   }
 }

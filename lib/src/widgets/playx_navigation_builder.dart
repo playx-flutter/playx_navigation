@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/binding/playx_binding.dart';
+import 'package:playx_navigation/src/binding/playx_page_state.dart';
 import 'package:playx_navigation/src/playx_navigation.dart';
 
 import '../routes/playx_route.dart';
@@ -46,7 +47,7 @@ class PlayxNavigationBuilder extends StatefulWidget {
 }
 
 class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
-  RouteMatch? _currentRoute;
+  GoRoute? _currentRoute;
 
   @override
   void initState() {
@@ -71,13 +72,31 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
   void listenToRouteChanges() {
     final currentRoute = PlayxNavigation.currentRoute;
 
-    final previousRoute = _currentRoute?.route;
+    final previousRoute = _currentRoute;
+    final currentBinding =
+        currentRoute is PlayxRoute ? currentRoute.binding : null;
+
     if (previousRoute is PlayxRoute) {
-      if (previousRoute.binding != null &&
-          previousRoute.binding!.shouldExecuteOnExit) {
-        previousRoute.binding!.onExit(
+      final binding = previousRoute.binding;
+
+      if (binding == null) {
+        _currentRoute = currentRoute;
+        return;
+      }
+      final state = binding.currentState;
+      if (state != PlayxPageState.hidden) {
+        binding.onHidden(
           context,
         );
+        binding.currentState = PlayxPageState.hidden;
+      }
+    }
+
+    if (currentBinding != null) {
+      if (currentBinding.currentState != PlayxPageState.enter &&
+          currentBinding.currentState != PlayxPageState.reEnter) {
+        currentBinding.onReEnter(context, null, false);
+        currentBinding.currentState = PlayxPageState.reEnter;
       }
     }
 

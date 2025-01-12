@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:playx_navigation/playx_navigation.dart';
+import 'package:playx_navigation_example/navigation/routes.dart';
 import 'package:playx_navigation_example/products/product.dart';
 
-import '../main.dart';
+class ProductsPage extends StatefulWidget {
+  const ProductsPage({super.key});
 
-class ProductsPage extends StatelessWidget {
-  ProductsPage({super.key});
+  @override
+  State<ProductsPage> createState() => _ProductsPageState();
+}
 
+class _ProductsPageState extends State<ProductsPage> {
   final products = List.generate(
       10,
       (e) => Product(
@@ -16,6 +20,12 @@ class ProductsPage extends StatelessWidget {
             imageUrl: 'https://picsum.photos/200/300?random=$e',
             price: 100.0 + e,
           ));
+
+  @override
+  void initState() {
+    super.initState();
+    // print('PlayxNavigation: Products onInit');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,5 +86,11 @@ class ProductsPage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    // print('PlayxNavigation: Products onDispose');
   }
 }

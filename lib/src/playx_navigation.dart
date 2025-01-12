@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'routes/playx_router.dart';
+import 'router/playx_router.dart';
 
 /// An abstract class that provides static methods for navigating within the
 /// application using [GoRouter].
@@ -33,14 +33,21 @@ abstract class PlayxNavigation {
     _playxRouter = PlayxRouter(router: router);
   }
 
+  /// Returns the [GoRouter] instance used for navigation.
+  static GoRouter get goRouter => _router.router;
+
+  /// Gets the current [GoRouterState] object representing the current state of the
+  /// navigation stack.
+  static GoRouterState? get currentState => _router.state;
+
   /// Gets the current [RouteMatch] object representing the current route in the
   /// navigation stack.
-  static RouteMatch? get currentRoute => _router.currentRoute;
+  static GoRoute? get currentRoute => _router.currentRoute;
 
   /// Gets the name of the current route, if available.
   ///
   /// Returns `null` if there is no current route or if the route has no name.
-  static String? get currentRouteName => currentRoute?.route.name;
+  static String? get currentRouteName => currentRoute?.name;
 
   /// Adds a listener for route changes.
   ///
@@ -224,6 +231,13 @@ abstract class PlayxNavigation {
     return _router.pop(result);
   }
 
+  /// Pops the top-most route off the navigation stack.
+  /// Returns `true` if the route was popped successfully.
+  /// Returns `false` if there are no routes to pop.
+  static bool maybePop<T extends Object?>([T? result]) {
+    return _router.maybePop(result);
+  }
+
   /// Returns `true` if there are two or more routes in the navigation stack that can be popped.
   ///
   /// Example usage:
@@ -279,4 +293,15 @@ abstract class PlayxNavigation {
         pathParameters: pathParameters,
         queryParameters: queryParameters,
       );
+
+  /// Gets the root navigator key for the application.
+  static GlobalKey<NavigatorState> get rootNavigatorKey =>
+      _router.rootNavigatorKey;
+
+  /// Gets the current [BuildContext] for the application's root navigator.
+  static BuildContext? get navigationContext => rootNavigatorKey.currentContext;
+
+  void dispose() {
+    _playxRouter = null;
+  }
 }

@@ -18,15 +18,18 @@ class PlayxRouter {
     required this.router,
   }) : rootNavigatorKey = router.configuration.navigatorKey;
 
-  /// Gets the current [RouteMatch] object representing the current route in the
+  /// Gets the current [GoRouterState] object representing the current state of the
   /// navigation stack.
-  RouteMatch? get currentRoute =>
-      router.routerDelegate.currentConfiguration.lastOrNull;
+  GoRouterState? get state => router.state;
+
+  /// Gets the current [GoRoute] object representing the current route in the
+  /// navigation stack.
+  GoRoute? get currentRoute => state?.topRoute;
 
   /// Gets the name of the current route, if available.
   ///
   /// Returns `null` if there is no current route or if the route has no name.
-  String? get currentRouteName => currentRoute?.route.name;
+  String? get currentRouteName => state?.name;
 
   /// Adds a listener for route changes.
   ///
@@ -173,6 +176,15 @@ class PlayxRouter {
   /// previous route.
   void pop<T extends Object?>([T? result]) {
     return router.pop(result);
+  }
+
+  /// Pops the top-most route off the navigation stack.
+  bool maybePop<T extends Object?>([T? result]) {
+    if (canPop()) {
+      router.pop(result);
+      return true;
+    }
+    return false;
   }
 
   /// Returns `true` if there is at least two or more route can be pop.
