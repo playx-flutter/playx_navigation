@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:playx_navigation/src/binding/playx_page_state.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
@@ -95,14 +96,21 @@ class PlayxRoute extends GoRoute {
 
             final topRoute = state.topRoute;
             // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
+            // We need to fire onEnter here so we can have access to the route state.
             if (topRoute == null || path == topRoute.path) {
-              binding.shouldExecuteOnExit = false;
-              print('Splash Navigation enter: ${topRoute?.path}');
-              if (binding.isHidden) {
-                binding.onReEnter(context, state);
-              } else {
+              final pageState = binding.currentState;
+              if (pageState == null || pageState == PlayxPageState.exit) {
                 binding.onEnter(context, state);
+                binding.currentState = PlayxPageState.enter;
+              } else {
+                binding.onReEnter(
+                  context,
+                  state,
+                  true,
+                );
+                binding.currentState = PlayxPageState.reEnter;
               }
+              binding.shouldExecuteOnExit = false;
             } else {}
             return null;
           },

@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
+import 'package:playx_navigation/src/binding/playx_page_state.dart';
 
 class PlayxPage extends StatefulWidget {
   final PlayxBinding binding;
@@ -25,7 +26,10 @@ class _PlayxPageState extends State<PlayxPage> {
   void dispose() {
     super.dispose();
     if (widget.binding.shouldExecuteOnExit) {
-      widget.binding.onExit(context);
+      widget.binding.onExit(
+        context,
+      );
+      widget.binding.currentState = PlayxPageState.exit;
     }
   }
 }
