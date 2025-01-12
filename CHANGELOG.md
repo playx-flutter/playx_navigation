@@ -1,10 +1,18 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0 - 0.1.1
 
 ### New Features
 - **`PlayxShellBranch`**:
     - Introduced the `PlayxShellBranch` class, an extension of `StatefulShellBranch` for creating branches with a single or multiple routes using `[PlayxRoute]`.
+
+- **`PlayxNavigation`**:
+    - Added new `rootNavigatorKey` and `navigationContext` getters for enhanced navigation control.
+    - Introduced a new `maybePop` method in the `PlayxNavigation` class for conditional navigation stack popping.
+    - Added a new `goRouter` getter that returns the `GoRouter` instance used for navigation.
+    - Introduced a new `currentState` getter that retrieves the current `GoRouterState` object representing the state of the navigation stack.
+    - Updated `currentRoute` to now return `GoRoute` instead of `RouteMatch` as it is based on the current state.
+    - Updated `currentRouteName` to now return the route name based on the current state.
 
 ### Dependency Updates
 - Upgraded the `go_router` package to version `14.6.3`.
@@ -28,7 +36,6 @@
         - Sequence of calls:
             - If the route is removed, `onExit` is called after `onHidden`.
             - If revisited, `onReEnter` is called after `onHidden`.
-
 
 
 ## 0.0.1

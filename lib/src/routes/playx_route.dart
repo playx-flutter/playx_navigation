@@ -106,7 +106,7 @@ class PlayxRoute extends GoRoute {
                 binding.onReEnter(
                   context,
                   state,
-                  true,
+                  false,
                 );
                 binding.currentState = PlayxPageState.reEnter;
               }
