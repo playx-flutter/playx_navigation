@@ -24,7 +24,7 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void initState() {
     super.initState();
-    print('PlayxNavigation: Products onInit');
+    // print('PlayxNavigation: Products onInit');
   }
 
   @override
@@ -91,6 +91,6 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void dispose() {
     super.dispose();
-    print('PlayxNavigation: Products onDispose');
+    // print('PlayxNavigation: Products onDispose');
   }
 }

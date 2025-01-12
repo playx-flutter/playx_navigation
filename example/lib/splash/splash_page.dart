@@ -13,7 +13,7 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    print('PlayxNavigation: Splash onInit');
+    // print('PlayxNavigation: Splash onInit');
     Future.delayed(const Duration(seconds: 5), () {
       PlayxNavigation.offAllNamed(Routes.home);
     });
@@ -31,6 +31,6 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void dispose() {
     super.dispose();
-    print('PlayxNavigation: Splash onDispose');
+    // print('PlayxNavigation: Splash onDispose');
   }
 }

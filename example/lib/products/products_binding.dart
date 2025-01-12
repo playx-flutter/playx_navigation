@@ -3,14 +3,16 @@ import 'package:playx_navigation/playx_navigation.dart';
 
 class ProductsBinding extends PlayxBinding {
   @override
-  Future<void> onEnter(BuildContext context, GoRouterState? state) async {
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
     // Handle on Enter
     print('PlayxNavigation: ProductsBinding onEnter');
   }
 
   @override
-  Future<void> onReEnter(BuildContext context, GoRouterState? state) async {
-    print('PlayxNavigation: ProductsBinding onReEnter');
+  Future<void> onReEnter(BuildContext context, GoRouterState? state,
+      bool wasPoppedAndReentered) async {
+    print(
+        'PlayxNavigation: ProductsBinding onReEnter wasPoppedAndReentered:$wasPoppedAndReentered');
   }
 
   @override
@@ -20,8 +22,10 @@ class ProductsBinding extends PlayxBinding {
   }
 
   @override
-  Future<void> onHidden(BuildContext context) async {
+  Future<void> onHidden(
+    BuildContext context,
+  ) async {
     // Handle On Hidden
-    print('PlayxNavigation: ProductsBinding onHidden');
+    print('PlayxNavigation: ProductsBinding onHidden ');
   }
 }

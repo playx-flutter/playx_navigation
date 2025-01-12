@@ -3,14 +3,16 @@ import 'package:playx_navigation/playx_navigation.dart';
 
 class HomeBinding extends PlayxBinding {
   @override
-  Future<void> onEnter(BuildContext context, GoRouterState? state) async {
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
     // Handle on Enter
     print('PlayxNavigation: Home onEnter');
   }
 
   @override
-  Future<void> onReEnter(BuildContext context, GoRouterState? state) async {
-    print('PlayxNavigation: Home onReEnter');
+  Future<void> onReEnter(BuildContext context, GoRouterState? state,
+      bool wasPoppedAndReentered) async {
+    print(
+        'PlayxNavigation: Home onReEnter isStillInNavigationStack :$wasPoppedAndReentered');
   }
 
   @override
@@ -20,7 +22,9 @@ class HomeBinding extends PlayxBinding {
   }
 
   @override
-  Future<void> onHidden(BuildContext context) async {
+  Future<void> onHidden(
+    BuildContext context,
+  ) async {
     // Handle On Hidden
     print('PlayxNavigation: Home onHidden');
   }

@@ -35,12 +35,12 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    print('PlayxNavigation: Home onInit');
+    // print('PlayxNavigation: Home onInit');
   }
 
   @override
   void dispose() {
     super.dispose();
-    print('PlayxNavigation: Home onDispose');
+    // print('PlayxNavigation: Home onDispose');
   }
 }
