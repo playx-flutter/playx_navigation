@@ -31,83 +31,100 @@ flutter pub get
 
 You can optionally define your route names and paths for easier management:
 
-```dart
-abstract class Routes {
-  static const home = 'home';
-  static const products = 'products';
-  static const details = 'productDetails';
-}
+```dart  
+abstract class Routes {  
+  static const home = 'home';  
+  static const products = 'products';  
+  static const details = 'productDetails';  
+}  
+  
+abstract class Paths {  
+  static const home = '/home';  
+  static const products = '/products';  
+  static const details = ':id';  
+}  
+```  
 
-abstract class Paths {
-  static const home = '/home';
-  static const products = '/products';
-  static const details = ':id';
-}
-```
-### Step 2: Create Your `GoRouter` Instance
+### Step 2: Create Your Route Bindings
 
-Use the `PlayxRoute` to define your app's navigation structure:
-
-```dart
-final router = GoRouter(
-  initialLocation: Paths.home,
-  debugLogDiagnostics: true,
-  routes: [
-    PlayxRoute(
-      path: Paths.home,
-      name: Routes.home,
-      builder: (context, state) => const HomePage(),
-      binding: HomeBinding(),
-    ),
-    PlayxRoute(
-      path: Paths.products,
-      name: Routes.products,
-      builder: (context, state) => ProductsPage(),
-      binding: ProductsBinding(),
-      routes: [
-        PlayxRoute(
-          path: Paths.details,
-          name: Routes.details,
-          builder: (context, state) => 
-            ProductDetailsPage(product: state.extra as Product),
-          binding: DetailsBinding(),
-        ),
-      ],
-    ),
-  ],
-);
-```
-
-### Step 3: Initialize `PlayxNavigationBuilder`
-
-Wrap your `MaterialApp` or `CupertionApp` in `PlayxNavigationBuilder` and pass the router instance to it to enable Playx Navigation and manage route changes:
+Create bindings for each route to handle lifecycle events such as entering or exiting a route. This ensures that your app's logic is properly managed.
 
 ```dart
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ProductsBinding extends PlayxBinding {
+  @override
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
+    // Initialize resources for the products page.
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return PlayxNavigationBuilder(
-      router: router,
-      builder: (context) {
-        return MaterialApp.router(
-          title: 'Playx',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          ),
-          routerDelegate: router.routerDelegate,
-          routeInformationParser: router.routeInformationParser,
-          routeInformationProvider: router.routeInformationProvider,
-          backButtonDispatcher: router.backButtonDispatcher,
-        );
-      });
+  Future<void> onExit(BuildContext context) async {
+    // Clean up resources when leaving the products page.
   }
 }
 ```
+### Step 3 : Create Your `GoRouter` Instance
+
+Use the `PlayxRoute` to define your app's navigation structure:
+
+```dart  
+final router = GoRouter(  
+  initialLocation: Paths.home,  
+  debugLogDiagnostics: true,  
+  routes: [  
+    PlayxRoute(  
+      path: Paths.home,  
+      name: Routes.home,  
+      builder: (context, state) => const HomePage(),  
+      binding: HomeBinding(),  
+    ),  
+    PlayxRoute(  
+      path: Paths.products,  
+      name: Routes.products,  
+      builder: (context, state) => ProductsPage(),  
+      binding: ProductsBinding(),  
+      routes: [  
+        PlayxRoute(  
+          path: Paths.details,  
+          name: Routes.details,  
+          builder: (context, state) =>   
+            ProductDetailsPage(product: state.extra as Product),  
+          binding: DetailsBinding(),  
+        ),  
+      ],  
+    ),  
+  ],  
+);  
+```  
+
+### Step 4 : Initialize `PlayxNavigationBuilder`
+
+Wrap your `MaterialApp` or `CupertionApp` in `PlayxNavigationBuilder` and pass the router instance to it to enable Playx Navigation and manage route changes:
+
+```dart  
+class MyApp extends StatelessWidget {  
+  const MyApp({super.key});  
+  
+  @override  
+  Widget build(BuildContext context) {  
+    return PlayxNavigationBuilder(  
+      router: router,  
+      builder: (context) {  
+        return MaterialApp.router(  
+          title: 'Playx',  
+          theme: ThemeData(  
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),  
+          ),  
+          routerDelegate: router.routerDelegate,  
+          routeInformationParser: router.routeInformationParser,  
+          routeInformationProvider: router.routeInformationProvider,  
+          backButtonDispatcher: router.backButtonDispatcher,  
+        );  
+      });  
+  }  
+}  
+```  
 
 `PlayxNavigationBuilder` simplifies the setup process by providing a centralized way to configure and manage routes, bindings, and other navigation-related settings.
-
 
 ## PlayxNavigation Methods and Utilities
 
@@ -204,12 +221,19 @@ return PlayxNavigationBuilder(
 
 ### Managing Route Lifecycle with `PlayxBinding`
 
-`PlayxBinding` is an abstract class designed to help you manage actions when navigating between routes. Whether you're setting up resources when a user enters a route or cleaning up when they leave, `PlayxBinding` provides a clean and straightforward way to handle these tasks.
+`PlayxBinding` is an abstract class in the PlayxNavigation package designed to manage actions during a route's lifecycle. This includes initializing resources when a route is entered, handling tasks when it's revisited, pausing actions when it's hidden, and cleaning up when it's removed from the navigation stack.
 
-**Key Points:**
+**Key Features:**
 
--   **Customizable onEnter/onExit:** Implement `onEnter` for setup actions when the route is first entered, and `onExit` for cleanup tasks when the route is removed from the navigation stack.
--   **Subroute Management:** The `onExit` method of a main route will only be called when the main route and all its subroutes are removed, making it easy to manage resources effectively.
+- **Comprehensive Lifecycle Management:** Handle route lifecycle events such as entering, re-entering, hiding, and exiting.
+- **Subroute Awareness:** The `onExit` method of a main route is called only when the main route and all its subroutes are removed, ensuring effective resource management.
+
+### Lifecycle Methods
+
+1. **onEnter:** Triggered when the route is first entered. Use this to initialize resources or fetch data.
+2. **onReEnter:** Called when revisiting a route that is still in the stack but temporarily hidden.
+3. **onHidden:** Triggered when the route is hidden but not removed. Useful for pausing tasks or releasing temporary resources.
+4. **onExit:** Triggered when the route is permanently removed from the stack. Use this to clean up resources or save the state.
 
 **Example:**
 
@@ -217,15 +241,39 @@ return PlayxNavigationBuilder(
 class MyRouteBinding extends PlayxBinding {
   @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
-    // Setup logic when the route is entered.
+    // Initialize resources or fetch data for the route.
+  }
+
+  @override
+  Future<void> onReEnter(
+    BuildContext context,
+    GoRouterState? state,
+    bool wasPoppedAndReentered,
+  ) async {
+    // Handle special cases when the route is revisited.
+  }
+
+  @override
+  Future<void> onHidden(BuildContext context) async {
+    // Pause tasks or release temporary resources.
   }
 
   @override
   Future<void> onExit(BuildContext context) async {
-    // Cleanup logic when the route is exited.
+    // Cleanup resources or save state when the route is exited.
   }
 }
 ```
+
+### Example Use Cases
+
+- **Data Fetching:** Fetch required data when a route is entered for the first time.
+- **Resource Cleanup:** Release heavy resources when the route is completely exited.
+- **Temporary Pauses:** Pause animations or background tasks when the route is hidden.
+- **Revisit Handling:** Refresh UI or state when the route is re-entered after being hidden.
+
+By extending `PlayxBinding`, you can efficiently manage the lifecycle of your application's routes and ensure that resources are used optimally.
+
 ##  Configuring Routes
 
 ###  Advanced Routing and Custom Transitions with `PlayxRoute`
