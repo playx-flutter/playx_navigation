@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+- Update GoRouter to v14.8.1
+- Add `setupWeb`  method for `PlayxNavigation` which allows for using path-based URLs and enables URL-based imperative APIs
+
 ## 0.1.0 - 0.1.1
 
 ### New Features

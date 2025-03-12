@@ -1,6 +1,6 @@
 name: playx_navigation
 description: Playx Navigation is a Flutter package that enhances app navigation with advanced features like route lifecycle management, custom transitions, and flexible configuration.
-version: 0.1.1
+version: 0.1.2
 homepage: https://sourcya.io
 repository: https://github.com/playx-flutter/playx_navigation
 issue_tracker: https://github.com/playx-flutter/playx_navigation/issues
@@ -19,7 +19,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  go_router: ^14.6.3
+  flutter_web_plugins:
+    sdk: flutter
+  go_router: ^14.8.1
 
 dev_dependencies:
   flutter_test:
