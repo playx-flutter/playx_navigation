@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart' as flutter_web_plugins;
 import 'package:go_router/go_router.dart';
 
 import 'router/playx_router.dart';
@@ -31,6 +33,21 @@ abstract class PlayxNavigation {
   /// This method must be called before using any other methods of [PlayxNavigation].
   static void boot({required GoRouter router}) {
     _playxRouter = PlayxRouter(router: router);
+  }
+
+  /// Sets up navigation for web applications.
+  /// Allows for using path-based URLs and enables URL-based imperative APIs.
+  static void setupWeb({
+    bool usePathUrlStrategy = true,
+    bool optionURLReflectsImperativeAPIs = true,
+  }) {
+    if (kIsWeb) {
+      GoRouter.optionURLReflectsImperativeAPIs =
+          optionURLReflectsImperativeAPIs;
+      if (usePathUrlStrategy) {
+        flutter_web_plugins.usePathUrlStrategy();
+      }
+    }
   }
 
   /// Returns the [GoRouter] instance used for navigation.
