@@ -95,7 +95,9 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
     if (currentBinding != null) {
       if (currentBinding.currentState != PlayxPageState.enter &&
           currentBinding.currentState != PlayxPageState.reEnter) {
-        currentBinding.onReEnter(context, null, true);
+        final GoRouterState newState =
+            PlayxNavigation.goRouter.routerDelegate.state;
+        currentBinding.onReEnter(context, newState, true);
         currentBinding.currentState = PlayxPageState.reEnter;
       }
     }

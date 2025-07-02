@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+- Update GoRouter to v16.0.0
+- Update minimum Dart SDK version to 3.6.0 and Flutter SDK version to 3.27.0
+- Refactored `PlayxRoute` and `PlayxNavigationBuilder` to better handle route state and binding events.
+- `GoRouterState` now passed correctly to `onReEnter`.
+
 ## 0.1.2
 - Update GoRouter to v14.8.1
 - Add `setupWeb`  method for `PlayxNavigation` which allows for using path-based URLs and enables URL-based imperative APIs

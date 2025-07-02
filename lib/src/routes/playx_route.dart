@@ -95,23 +95,33 @@ class PlayxRoute extends GoRoute {
             if (binding == null) return null;
 
             final topRoute = state.topRoute;
+
+            // If the current route is no longer on top, call onExit if needed
+            if (topRoute == null || topRoute.path != path) {
+              if (binding.shouldExecuteOnExit) {
+                await binding.onExit(context);
+              }
+              return null;
+            }
+
             // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
             // We need to fire onEnter here so we can have access to the route state.
-            if (topRoute == null || path == topRoute.path) {
-              final pageState = binding.currentState;
-              if (pageState == null || pageState == PlayxPageState.exit) {
-                binding.onEnter(context, state);
-                binding.currentState = PlayxPageState.enter;
-              } else {
-                binding.onReEnter(
-                  context,
-                  state,
-                  false,
-                );
-                binding.currentState = PlayxPageState.reEnter;
-              }
-              binding.shouldExecuteOnExit = false;
-            } else {}
+            final pageState = binding.currentState;
+            final isFirstEnter =
+                pageState == null || pageState == PlayxPageState.exit;
+            binding.currentState =
+                isFirstEnter ? PlayxPageState.enter : PlayxPageState.reEnter;
+
+            if (isFirstEnter) {
+              binding.onEnter(context, state);
+            } else {
+              binding.onReEnter(
+                context,
+                state,
+                false,
+              );
+            }
+            binding.shouldExecuteOnExit = false;
             return null;
           },
           onExit: binding == null

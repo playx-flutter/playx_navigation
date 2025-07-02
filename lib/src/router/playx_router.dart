@@ -20,16 +20,16 @@ class PlayxRouter {
 
   /// Gets the current [GoRouterState] object representing the current state of the
   /// navigation stack.
-  GoRouterState? get state => router.state;
+  GoRouterState get state => router.state;
 
   /// Gets the current [GoRoute] object representing the current route in the
   /// navigation stack.
-  GoRoute? get currentRoute => state?.topRoute;
+  GoRoute? get currentRoute => state.topRoute;
 
   /// Gets the name of the current route, if available.
   ///
   /// Returns `null` if there is no current route or if the route has no name.
-  String? get currentRouteName => state?.name;
+  String? get currentRouteName => state.name;
 
   /// Adds a listener for route changes.
   ///
@@ -41,7 +41,9 @@ class PlayxRouter {
   /// Removes a previously added route change listener.
   ///
   /// The provided [listener] will no longer be called when the route changes.
-  void removeRouteChangeListener(VoidCallback listener)
+  void removeRouteChangeListener(VoidCallback listener) {
+    router.routerDelegate.removeListener(listener);
+  }
 
   /// Navigate to the current location of the branch at the provided index of
   /// [StatefulShellRoute].
@@ -53,10 +55,6 @@ class PlayxRouter {
   /// When navigating to a new branch, it's recommended to use the goToBranch
   /// method, as doing so makes sure the last navigation state of the
   /// Navigator for the branch is restored.
-  {
-    router.routerDelegate.removeListener(listener);
-  }
-
   void goToBranch({
     required int index,
     required StatefulNavigationShell navigationShell,
