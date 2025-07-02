@@ -95,31 +95,33 @@ class PlayxRoute extends GoRoute {
             if (binding == null) return null;
 
             final topRoute = state.topRoute;
-            // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
-            // We need to fire onEnter here so we can have access to the route state.
-            if (topRoute == null || path != topRoute.path || path!= state.path) {
+
+            // If the current route is no longer on top, call onExit if needed
+            if (topRoute == null || topRoute.path != path) {
               if (binding.shouldExecuteOnExit) {
-                // If the binding is not null and shouldExecuteOnExit is true, we call onExit
-                await binding.onExit(context,);
+                await binding.onExit(context);
               }
               return null;
             }
 
-              final pageState = binding.currentState;
-            final isFirstEnter = pageState == null || pageState == PlayxPageState.exit;
+            // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
+            // We need to fire onEnter here so we can have access to the route state.
+            final pageState = binding.currentState;
+            final isFirstEnter =
+                pageState == null || pageState == PlayxPageState.exit;
             binding.currentState =
-            isFirstEnter ? PlayxPageState.enter : PlayxPageState.reEnter;
+                isFirstEnter ? PlayxPageState.enter : PlayxPageState.reEnter;
 
             if (isFirstEnter) {
-                binding.onEnter(context, state);
-              } else {
-                binding.onReEnter(
-                  context,
-                  state,
-                  false,
-                );
-              }
-              binding.shouldExecuteOnExit = false;
+              binding.onEnter(context, state);
+            } else {
+              binding.onReEnter(
+                context,
+                state,
+                false,
+              );
+            }
+            binding.shouldExecuteOnExit = false;
             return null;
           },
           onExit: binding == null
