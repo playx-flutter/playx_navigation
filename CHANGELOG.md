@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+- Update GoRouter to v17.0.0
+
+
 ## 0.2.0
 - Update GoRouter to v16.0.0
 - Update minimum Dart SDK version to 3.6.0 and Flutter SDK version to 3.27.0
