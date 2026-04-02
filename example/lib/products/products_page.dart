@@ -39,7 +39,7 @@ class _ProductsPageState extends State<ProductsPage> {
           final item = products[index];
           return InkWell(
             onTap: () {
-              PlayxNavigation.toNamed(Routes.details,
+              PlayxNavigation.toNamed(Routes.productDetails,
                   pathParameters: {
                     'id': item.id.toString(),
                   },

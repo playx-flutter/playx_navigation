@@ -1,32 +1,30 @@
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 
-class DetailsBinding extends PlayxBinding {
-  @override
-  Future<void> onInitApp() async {
-    print('PlayxNavigation: DetailsBinding onInitApp');
-  }
-
+/// Binding for the Explore Details route — tests the case where navigating
+/// to details from a DIFFERENT branch (Explore) pushes a child route
+/// in a separate branch context.
+class ExploreDetailsBinding extends PlayxBinding {
   @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
     final id = state.pathParameters['id'];
-    print('PlayxNavigation: Product Details #$id onEnter');
+    print('PlayxNavigation: Explore Details #$id onEnter');
   }
 
   @override
   Future<void> onReEnter(BuildContext context, GoRouterState? state,
       bool wasPoppedAndReentered) async {
     print(
-        'PlayxNavigation: Product Details onReEnter wasPoppedAndReentered:$wasPoppedAndReentered');
+        'PlayxNavigation: Explore Details onReEnter wasPoppedAndReentered:$wasPoppedAndReentered');
   }
 
   @override
   Future<void> onExit(BuildContext context) async {
-    print('PlayxNavigation: Product Details onExit');
+    print('PlayxNavigation: Explore Details onExit');
   }
 
   @override
   Future<void> onHidden(BuildContext context) async {
-    print('PlayxNavigation: Product Details onHidden');
+    print('PlayxNavigation: Explore Details onHidden');
   }
 }

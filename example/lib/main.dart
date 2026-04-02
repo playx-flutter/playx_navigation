@@ -3,6 +3,8 @@ import 'package:playx_navigation/playx_navigation.dart';
 import 'package:playx_navigation_example/navigation/pages.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  PlayxNavigation.setupWeb();
   runApp(const MyApp());
 }
 
