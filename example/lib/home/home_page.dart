@@ -79,7 +79,8 @@ class HomePage extends StatelessWidget {
               final msg = 'Found ${bindings.length} bindings:\n'
                   '${bindings.map((b) => '  • ${b.runtimeType}').join('\n')}';
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+                SnackBar(
+                    content: Text(msg), duration: const Duration(seconds: 3)),
               );
             },
             icon: const Icon(Icons.search),
