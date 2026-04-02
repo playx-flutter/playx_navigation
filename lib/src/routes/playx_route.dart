@@ -1,5 +1,5 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-import 'package:playx_navigation/src/binding/playx_page_state.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
@@ -45,21 +45,27 @@ import '../models/playx_page_transition.dart';
 /// - **Page Transition:** The [transition] parameter allows for custom animations when transitioning between pages.
 /// - **Page Configuration:** The [pageConfiguration] parameter enables customization of page settings, including title and unique key.
 /// - **Route Binding:** The [binding] parameter allows for attaching a [PlayxBinding] to handle lifecycle events.
-///   - `onEnter`: Invoked when the route is entered for the first time. For subroutes, this method is called each time the subroute is entered.
-///   - `onExit`: Called when the route is exited. For subroutes, the `onExit` method of the main route is executed only when the main route is removed from the navigation stack.
+///   - `onEnter`: Invoked when the route's page widget first mounts (via `initState`).
+///   - `onExit`: Called when the route's page widget is disposed (truly removed from the tree).
+///   - `onHidden`: Called when another route takes the foreground while this route stays in the stack.
+///   - `onReEnter`: Called when this route returns to the foreground after being hidden.
 ///
 /// **Custom Redirection:**
-/// If a [redirect] callback is provided, it will handle redirection logic. If not provided, the default redirection behavior is applied.
+/// If a [redirect] callback is provided, it will handle redirection logic independently of binding lifecycle.
 ///
 /// **Route Lifecycle:**
-/// - The `onEnter` method of the route's binding is executed when the route is entered for the first time or when navigating to the same route as the top route.
-/// - The `onExit` method is executed when the route is exited. If a [binding] is provided, its `onExit` method is called based on the `shouldExecuteOnExit` flag.
+/// The binding lifecycle is managed through the [PlayxPage] widget lifecycle
+/// and the [PlayxNavigationBuilder] route-change listener — no longer through redirect callbacks.
 class PlayxRoute extends GoRoute {
   /// An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
   ///
-  /// The [binding] allows you to attach custom logic that is executed when the route is entered or exited.
-  /// - `onEnter`: This method is called when the route is entered for the first time.
-  /// - `onExit`: This method is called when the route is exited.
+  /// The [binding] allows you to attach custom logic that is executed at different
+  /// stages of the route's lifecycle:
+  /// - `onInitApp`: Called once during app initialization.
+  /// - `onEnter`: Called when the route's page widget first mounts.
+  /// - `onHidden`: Called when another route covers this route.
+  /// - `onReEnter`: Called when this route returns to the foreground.
+  /// - `onExit`: Called when the route's page widget is disposed.
   final PlayxBinding? binding;
 
   /// Specifies the page transition animation to be used.
@@ -75,6 +81,10 @@ class PlayxRoute extends GoRoute {
   /// Defaults to [PlayxPageConfiguration()].
   final PlayxPageConfiguration pageConfiguration;
 
+  /// An optional widget that is displayed while the [binding]'s `onEnter` is being initialized.
+  /// Defaults to [SizedBox.shrink()].
+  final Widget? loadingWidget;
+
   PlayxRoute({
     required super.path,
     super.name,
@@ -83,63 +93,22 @@ class PlayxRoute extends GoRoute {
     this.pageConfiguration = const PlayxPageConfiguration(),
     super.parentNavigatorKey,
     this.binding,
-    GoRouterRedirect? redirect,
-    ExitCallback? onExit,
+    this.loadingWidget,
+    super.redirect,
+    super.onExit,
     super.routes = const <RouteBase>[],
   }) : super(
-          redirect: (context, state) async {
-            // Handle custom redirection logic if provided
-            if (redirect != null) {
-              return redirect(context, state);
-            }
-            if (binding == null) return null;
-
-            final topRoute = state.topRoute;
-
-            // If the current route is no longer on top, call onExit if needed
-            if (topRoute == null || topRoute.path != path) {
-              if (binding.shouldExecuteOnExit) {
-                await binding.onExit(context);
-              }
-              return null;
-            }
-
-            // Trigger onEnter when entering the page for the first time and when the top route is the same as the current route
-            // We need to fire onEnter here so we can have access to the route state.
-            final pageState = binding.currentState;
-            final isFirstEnter =
-                pageState == null || pageState == PlayxPageState.exit;
-            binding.currentState =
-                isFirstEnter ? PlayxPageState.enter : PlayxPageState.reEnter;
-
-            if (isFirstEnter) {
-              binding.onEnter(context, state);
-            } else {
-              binding.onReEnter(
-                context,
-                state,
-                false,
-              );
-            }
-            binding.shouldExecuteOnExit = false;
-            return null;
-          },
-          onExit: binding == null
-              ? onExit
-              : (context, state) async {
-                  bool shouldExit = true;
-                  if (onExit != null) {
-                    shouldExit = await onExit(context, state);
-                  }
-                  binding.shouldExecuteOnExit = shouldExit;
-                  return shouldExit;
-                },
           pageBuilder: (ctx, state) {
             return transition.buildPage(
               config: pageConfiguration,
               child: binding == null
                   ? builder(ctx, state)
-                  : PlayxPage(binding: binding, child: builder(ctx, state)),
+                  : PlayxPage(
+                      binding: binding,
+                      state: state,
+                      loadingWidget: loadingWidget,
+                      child: builder(ctx, state),
+                    ),
               state: state,
             );
           },

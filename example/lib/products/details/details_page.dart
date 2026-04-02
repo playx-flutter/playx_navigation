@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:playx_navigation_example/products/product.dart';
 
 class ProductDetailsPage extends StatelessWidget {
-  final Product product;
+  final Product? product;
   const ProductDetailsPage({required this.product, super.key});
 
   @override
@@ -16,15 +16,15 @@ class ProductDetailsPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               Text(
-                product.name,
+                product?.name ?? 'test',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               Text(
-                product.description,
+                product?.description ?? '',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               Text(
-                product.price.toString(),
+                product?.price.toString() ?? '-',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ],

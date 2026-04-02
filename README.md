@@ -7,6 +7,9 @@
 ## Features
 
 -   **Route Bindings**: Attach custom logic to specific routes, handling lifecycle events such as entering or exiting a route.
+-   **App Initialization Lifecycle**: Register app-level dependencies (repositories, datasources, services) via `onInitApp` in your bindings, called automatically during boot.
+-   **Initialization Awaiting**: Use `PlayxNavigation.ensureInitialized` to gate startup logic until all bindings are initialized.
+-   **Binding Registry**: Access any registered binding by type via `PlayxNavigation.findBinding<T>()`.
 -   **Advanced Route Configuration**: Fine-tune the behavior of your routes with extensive configuration options, including custom transitions, modal behavior, and state management.
 -   **Route Management**: Easily navigate to routes, replace routes, and handle navigation stacks without the need for buildcontext.
 -   **Custom Page Transitions**: Use predefined transitions or create your own to enhance the user experience.
@@ -47,10 +50,16 @@ abstract class Paths {
 
 ### Step 2: Create Your Route Bindings
 
-Create bindings for each route to handle lifecycle events such as entering or exiting a route. This ensures that your app's logic is properly managed.
+Create bindings for each route to handle lifecycle events such as app initialization, entering or exiting a route. This ensures that your app's logic is properly managed.
 
 ```dart
 class ProductsBinding extends PlayxBinding {
+  @override
+  Future<void> onInitApp() async {
+    // Register app-level dependencies during initialization.
+    // This is called once when the app boots, before any route is entered.
+  }
+
   @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
     // Initialize resources for the products page.
@@ -135,7 +144,7 @@ The `PlayxNavigation` class offers a variety of static methods for managing navi
 Before using any navigation methods, initialize `PlayxNavigation`:
 
 ```dart
-PlayxNavigation.boot(router: yourGoRouterInstance);
+await PlayxNavigation.boot(router: yourGoRouterInstance);
 ```
 Alternatively, use `PlayxNavigationBuilder` to automatically initialize the navigation system:
 
@@ -148,7 +157,25 @@ return PlayxNavigationBuilder(
       routeInformationParser: router.routeInformationParser,
     );
   });
-``` 
+```
+
+### Awaiting Initialization
+
+Since `boot()` is asynchronous (it calls `onInitApp()` on all discovered bindings), you can await initialization anywhere in your app using `ensureInitialized`:
+
+```dart
+// In a splash screen or startup flow:
+await PlayxNavigation.ensureInitialized;
+// All bindings are now initialized — safe to proceed.
+```
+
+You can also check synchronously whether initialization has completed:
+
+```dart
+if (PlayxNavigation.isInitialized) {
+  // Navigation is ready.
+}
+```
 
 ### Methods Overview
 
@@ -216,29 +243,95 @@ return PlayxNavigationBuilder(
 -   **`addRouteChangeListener(VoidCallback listener)`**: Adds a listener for route changes.
 -   **`removeRouteChangeListener(VoidCallback listener)`**: Removes a previously added route change listener.
 
+### Accessing Bindings
+
+After initialization, all discovered `PlayxBinding` instances are stored and can be accessed by type:
+
+-   **`bindings`**: Returns an unmodifiable list of all discovered `PlayxBinding` instances.
+
+    ```dart
+    final allBindings = PlayxNavigation.bindings;
+    ```
+
+-   **`findBinding<T>()`**: Finds and returns the first binding of the specified type. Throws `StateError` if not found.
+
+    ```dart
+    final productsBinding = PlayxNavigation.findBinding<ProductsBinding>();
+    ```
+
+-   **`findBindingOrNull<T>()`**: Same as `findBinding<T>()` but returns `null` instead of throwing.
+
+    ```dart
+    final binding = PlayxNavigation.findBindingOrNull<ProductsBinding>();
+    if (binding != null) {
+      // Use the binding.
+    }
+    ```
+
 
 ## Route Bindings
 
 ### Managing Route Lifecycle with `PlayxBinding`
 
-`PlayxBinding` is an abstract class in the PlayxNavigation package designed to manage actions during a route's lifecycle. This includes initializing resources when a route is entered, handling tasks when it's revisited, pausing actions when it's hidden, and cleaning up when it's removed from the navigation stack.
+`PlayxBinding` is an abstract class in the PlayxNavigation package designed to manage actions during both the app's initialization and a route's lifecycle. This includes registering app-level dependencies at startup, initializing resources when a route is entered, handling tasks when it's revisited, pausing actions when it's hidden, and cleaning up when it's removed from the navigation stack.
 
 **Key Features:**
 
-- **Comprehensive Lifecycle Management:** Handle route lifecycle events such as entering, re-entering, hiding, and exiting.
-- **Subroute Awareness:** The `onExit` method of a main route is called only when the main route and all its subroutes are removed, ensuring effective resource management.
+- **App Initialization:** Register app-level dependencies (repositories, datasources, services) via `onInitApp`, called once at startup.
+- **Widget-Lifecycle Driven:** `onEnter` fires from `PlayxPage.initState` (once on mount), `onExit` fires from `PlayxPage.dispose` (only when truly removed from the tree).
+- **Initialization Blocking:** The route's child widget is only built after its binding's `onEnter` completes. This guarantees any dependencies registered in `onEnter` (like GetX controllers) are available during the first build.
+- **Custom Loading Widget:** Each route can provide a `loadingWidget` to be displayed while `onEnter` is initializing (defaults to `SizedBox.shrink()`).
+- **Route-Change Driven:** `onHidden` and `onReEnter` fire from the route-change listener when the top route changes.
+- **Shell Route Aware:** In `StatefulShellRoute`, branch switching fires `onHidden`/`onReEnter` (not `onExit`/`onEnter`) because the widget stays alive in its branch.
+- **Binding Access:** Retrieve any binding by type via `PlayxNavigation.findBinding<T>()` after initialization.
 
 ### Lifecycle Methods
 
-1. **onEnter:** Triggered when the route is first entered. Use this to initialize resources or fetch data.
-2. **onReEnter:** Called when revisiting a route that is still in the stack but temporarily hidden.
-3. **onHidden:** Triggered when the route is hidden but not removed. Useful for pausing tasks or releasing temporary resources.
-4. **onExit:** Triggered when the route is permanently removed from the stack. Use this to clean up resources or save the state.
+1. **onInitApp:** Called once during `boot()`. Register app-level dependencies. Runs before any route is entered.
+2. **onEnter:** Fires from `PlayxPage.initState` when the page widget first mounts. Guaranteed to fire exactly once per route entry.
+3. **onHidden:** Fires when another route takes the foreground (push, branch switch) while this route stays in the stack.
+4. **onReEnter:** Fires when this route returns to the foreground after being hidden. Receives `wasPoppedAndReentered`:
+   - `true` — a child route was popped, revealing this parent.
+   - `false` — a branch switch brought this route back.
+5. **onExit:** Fires from `PlayxPage.dispose` when the page is truly removed from the widget tree.
+
+### Lifecycle Order
+
+```
+onInitApp()  →  onEnter()  →  onHidden() ⇌ onReEnter()  →  onExit()
+     ↑              ↑               ↑                          ↑
+  once at boot   widget mount   route changes            widget dispose
+```
+
+### Shell Route Behavior
+
+```
+Branch A (Home) ↔ Branch B (Products)
+
+1. Enter Home         → home.onEnter
+2. Switch to Products → home.onHidden, products.onEnter
+3. Switch back        → products.onHidden, home.onReEnter(wasPoppedAndReentered: false)
+```
+
+```
+Parent → Child (push/pop)
+
+1. Enter List         → list.onEnter
+2. Push Details       → list.onHidden, details.onEnter
+3. Pop Details        → details.onExit, list.onReEnter(wasPoppedAndReentered: true)
+4. Navigate away      → list.onExit
+```
 
 **Example:**
 
 ```dart
 class MyRouteBinding extends PlayxBinding {
+  @override
+  Future<void> onInitApp() async {
+    // Register app-level dependencies during initialization.
+    // Called once at boot, before any route lifecycle events.
+  }
+
   @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
     // Initialize resources or fetch data for the route.
@@ -251,6 +344,7 @@ class MyRouteBinding extends PlayxBinding {
     bool wasPoppedAndReentered,
   ) async {
     // Handle special cases when the route is revisited.
+    // wasPoppedAndReentered: true if a child was popped, false if branch switched.
   }
 
   @override
@@ -267,12 +361,14 @@ class MyRouteBinding extends PlayxBinding {
 
 ### Example Use Cases
 
+- **App-Level Dependency Registration:** Register repositories, datasources, and services in `onInitApp` so they're available before any route is entered.
 - **Data Fetching:** Fetch required data when a route is entered for the first time.
-- **Resource Cleanup:** Release heavy resources when the route is completely exited.
-- **Temporary Pauses:** Pause animations or background tasks when the route is hidden.
-- **Revisit Handling:** Refresh UI or state when the route is re-entered after being hidden.
+- **Resource Cleanup:** Release heavy resources when the route is completely exited. For shell routes, `onExit` only fires when the route is truly removed—not on branch switches.
+- **Temporary Pauses:** Pause animations or background tasks when the route is hidden (push or branch switch).
+- **Revisit Handling:** Refresh UI or state when the route is re-entered. Use `wasPoppedAndReentered` to distinguish between pop and branch switch.
+- **Binding Access:** Retrieve a specific binding from anywhere: `PlayxNavigation.findBinding<MyBinding>()`.
 
-By extending `PlayxBinding`, you can efficiently manage the lifecycle of your application's routes and ensure that resources are used optimally.
+By extending `PlayxBinding`, you can efficiently manage both app-level initialization and route-specific lifecycle, ensuring that resources are used optimally.
 
 ##  Configuring Routes
 

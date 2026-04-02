@@ -5,9 +5,11 @@ import 'package:playx_navigation/src/binding/playx_page_state.dart';
 /// An abstract class for defining bindings associated with routes in the PlayxNavigation system.
 ///
 /// The `PlayxBinding` class provides a mechanism to execute specific actions at different
-/// stages of a route's lifecycle, such as when a route is entered, re-entered, hidden, or exited.
+/// stages of a route's lifecycle, such as when the app is initialized, when a route is entered,
+/// re-entered, hidden, or exited.
 ///
 /// ### Use Cases:
+/// - Initialize and register app-level instances (repositories, datasources, services) during app startup.
 /// - Perform initialization or setup when a route is entered.
 /// - Release resources or perform cleanup when a route is exited.
 /// - Handle special cases when a route is temporarily hidden or revisited.
@@ -17,6 +19,11 @@ import 'package:playx_navigation/src/binding/playx_page_state.dart';
 /// ### Example:
 /// ```dart
 /// class MyRouteBinding extends PlayxBinding {
+///   @override
+///   Future<void> onInitApp() async {
+///     // Register app-level dependencies like repositories and datasources.
+///   }
+///
 ///   @override
 ///   Future<void> onEnter(BuildContext context, GoRouterState state) async {
 ///     // Initialize resources or fetch data for the route.
@@ -29,9 +36,35 @@ import 'package:playx_navigation/src/binding/playx_page_state.dart';
 /// }
 /// ```
 ///
-/// The associated route's lifecycle events ([onEnter], [onReEnter], [onHidden], [onExit])
+/// The associated route's lifecycle events ([onInitApp], [onEnter], [onReEnter], [onHidden], [onExit])
 /// are triggered automatically by the PlayxNavigation system.
 abstract class PlayxBinding {
+  /// Called once during the application initialization phase.
+  ///
+  /// Use this method to initialize and register app-level instances of components,
+  /// such as repositories, datasources, services, or any other dependencies that
+  /// need to be available throughout the application's lifetime.
+  ///
+  /// This method is called automatically by the PlayxNavigation system during
+  /// initialization (e.g., when [PlayxNavigationBuilder] is first built or when
+  /// [PlayxNavigation.boot] is called), before any route lifecycle events are triggered.
+  ///
+  /// Unlike [onEnter], which is called each time a specific route is navigated to,
+  /// [onInitApp] is invoked only once at app startup, making it ideal for
+  /// one-time setup tasks.
+  ///
+  /// ### Example:
+  /// ```dart
+  /// @override
+  /// Future<void> onInitApp() async {
+  ///   // Register datasources
+  ///   Get.lazyPut<IMyDatasource>(() => MyDatasource());
+  ///   // Register repositories
+  ///   Get.lazyPut<IMyRepository>(() => MyRepository(Get.find()));
+  /// }
+  /// ```
+  Future<void> onInitApp() async {}
+
   /// Called when the route is entered for the first time.
   ///
   /// Use this method for initializing resources, fetching data, or setting up the UI
@@ -94,12 +127,6 @@ abstract class PlayxBinding {
   ///
   /// - [context]: The [BuildContext] of the route.
   Future<void> onHidden(BuildContext context) async {}
-
-  /// Determines whether [onExit] should be executed when the route is exited.
-  ///
-  /// **Important:** This field is managed internally by the PlayxNavigation system
-  /// and should not be modified directly by subclasses.
-  bool shouldExecuteOnExit = false;
 
   /// Represents the current state of the page within its lifecycle.
   ///
