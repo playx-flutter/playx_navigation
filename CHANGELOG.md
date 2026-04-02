@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+- **New `onInitApp` Lifecycle Method for `PlayxBinding`**: Added a new `onInitApp()` lifecycle method that is called once during app initialization. This allows developers to register app-level instances (repositories, datasources, services) directly from their bindings before any route lifecycle events are triggered.
+- `PlayxNavigation.boot()` now returns a `Future<void>` and automatically discovers all `PlayxBinding` instances in the route tree, calling `onInitApp()` on each during initialization.
+- **New `ensureInitialized`**: A static `Future<void>` getter that completes when `boot()` and all `onInitApp()` calls finish. Useful for gating startup logic (e.g., splash screens).
+- **New `isInitialized`**: A static `bool` getter that returns `true` after `boot()` has completed.
+- **New `bindings`**: A static getter that returns an unmodifiable list of all discovered `PlayxBinding` instances from the route tree.
+- **New `findBinding<T>()`**: Type-safe lookup to retrieve a specific binding by its concrete type. Throws `StateError` if not found.
+- **New `findBindingOrNull<T>()`**: Same as `findBinding<T>()` but returns `null` instead of throwing if no match is found.
+- `PlayxNavigationBuilder` updated to handle the async boot process seamlessly.
+
 ## 0.3.0
 - Update GoRouter to v17.0.0
 

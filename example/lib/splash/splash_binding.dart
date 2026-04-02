@@ -3,6 +3,12 @@ import 'package:playx_navigation/playx_navigation.dart';
 
 class SplashBinding extends PlayxBinding {
   @override
+  Future<void> onInitApp() async {
+    // Register app-level dependencies during initialization.
+    print('PlayxNavigation: Splash onInitApp - Registering dependencies');
+  }
+
+  @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
     // Handle on Enter
     print('PlayxNavigation: Splash onEnter');

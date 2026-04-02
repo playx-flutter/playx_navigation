@@ -56,9 +56,13 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
   }
 
   /// Initializes the [PlayxNavigation] system and sets up route change listeners.
-  void setupRouter() {
+  ///
+  /// If a [GoRouter] is provided, this method calls [PlayxNavigation.boot]
+  /// which initializes the navigation system and invokes [PlayxBinding.onInitApp]
+  /// on all discovered bindings before adding the route change listener.
+  Future<void> setupRouter() async {
     if (widget.router != null) {
-      PlayxNavigation.boot(router: widget.router!);
+      await PlayxNavigation.boot(router: widget.router!);
     }
     PlayxNavigation.addRouteChangeListener(listenToRouteChanges);
   }

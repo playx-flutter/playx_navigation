@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart' as flutter_web_plugins;
 import 'package:go_router/go_router.dart';
 
 import 'router/playx_router.dart';
+import 'routes/playx_route.dart';
+import 'binding/playx_binding.dart';
 
 /// An abstract class that provides static methods for navigating within the
 /// application using [GoRouter].
@@ -11,10 +15,85 @@ import 'router/playx_router.dart';
 /// This class needs to be initialized by calling [PlayxNavigation.boot] before
 /// using any of its methods. Alternatively, you can add the `PlayxNavigationBuilder`
 /// widget to your widget tree.
+///
+/// You can await [PlayxNavigation.ensureInitialized] anywhere in your app to
+/// wait for the navigation system to finish booting and all [PlayxBinding.onInitApp]
+/// methods to complete.
 abstract class PlayxNavigation {
   PlayxNavigation._();
 
   static PlayxRouter? _playxRouter;
+
+  static Completer<void>? _initCompleter;
+
+  static final List<PlayxBinding> _bindings = [];
+
+  /// Returns an unmodifiable list of all [PlayxBinding] instances discovered
+  /// in the route tree during [boot].
+  ///
+  /// This list is populated after [boot] completes and includes every unique
+  /// binding attached to a [PlayxRoute] in the router's configuration.
+  static List<PlayxBinding> get bindings => List.unmodifiable(_bindings);
+
+  /// Finds and returns the first [PlayxBinding] of the specified type [T]
+  /// from the discovered bindings.
+  ///
+  /// Throws a [StateError] if no binding of type [T] is found.
+  ///
+  /// ### Example:
+  /// ```dart
+  /// final splashBinding = PlayxNavigation.findBinding<SplashBinding>();
+  /// ```
+  static T findBinding<T extends PlayxBinding>() {
+    return _bindings.firstWhere(
+      (binding) => binding is T,
+      orElse: () => throw StateError(
+        'No PlayxBinding of type $T found. '
+        'Ensure a route with this binding is registered in the router.',
+      ),
+    ) as T;
+  }
+
+  /// Finds and returns the first [PlayxBinding] of the specified type [T]
+  /// from the discovered bindings, or `null` if no match is found.
+  ///
+  /// ### Example:
+  /// ```dart
+  /// final binding = PlayxNavigation.findBindingOrNull<SplashBinding>();
+  /// if (binding != null) {
+  ///   // Use the binding.
+  /// }
+  /// ```
+  static T? findBindingOrNull<T extends PlayxBinding>() {
+    final match = _bindings.whereType<T>().firstOrNull;
+    return match;
+  }
+
+  /// A [Future] that completes when [PlayxNavigation.boot] has finished,
+  /// including the invocation of all [PlayxBinding.onInitApp] methods.
+  ///
+  /// Use this to gate logic that depends on the navigation system being fully
+  /// initialized, for example in splash screens or startup flows:
+  ///
+  /// ```dart
+  /// await PlayxNavigation.ensureInitialized;
+  /// // Safe to use navigation and any dependencies registered in onInitApp.
+  /// ```
+  ///
+  /// If [boot] has not been called yet, this getter returns a [Future] that
+  /// will complete once [boot] finishes.
+  /// If [boot] has already completed, the returned [Future] resolves immediately.
+  static Future<void> get ensureInitialized {
+    _initCompleter ??= Completer<void>();
+    return _initCompleter!.future;
+  }
+
+  /// Whether the navigation system has been fully initialized.
+  ///
+  /// Returns `true` after [boot] has completed (including all
+  /// [PlayxBinding.onInitApp] invocations). Returns `false` otherwise.
+  static bool get isInitialized =>
+      _initCompleter != null && _initCompleter!.isCompleted;
 
   /// Gets the singleton instance of [PlayxRouter].
   ///
@@ -31,8 +110,59 @@ abstract class PlayxNavigation {
   /// Initializes [PlayxNavigation] with the given [GoRouter].
   ///
   /// This method must be called before using any other methods of [PlayxNavigation].
-  static void boot({required GoRouter router}) {
-    _playxRouter = PlayxRouter(router: router);
+  ///
+  /// When called, it automatically discovers all [PlayxBinding] instances
+  /// attached to [PlayxRoute]s in the router's route tree and invokes their
+  /// [PlayxBinding.onInitApp] methods, ensuring app-level dependencies are
+  /// registered before any route lifecycle events are triggered.
+  ///
+  /// After boot completes, [ensureInitialized] resolves and [isInitialized]
+  /// returns `true`.
+  static Future<void> boot({required GoRouter router}) async {
+    // Reset the completer and bindings for fresh initialization (supports re-boot).
+    _initCompleter = Completer<void>();
+    _bindings.clear();
+    try {
+      _playxRouter = PlayxRouter(router: router);
+      await _initializeBindings(router);
+      _initCompleter!.complete();
+    } catch (e, s) {
+      _initCompleter!.completeError(e, s);
+      rethrow;
+    }
+  }
+
+  /// Recursively walks the [GoRouter] route tree, collects all unique
+  /// [PlayxBinding] instances, stores them, and calls [PlayxBinding.onInitApp] on each.
+  static Future<void> _initializeBindings(GoRouter router) async {
+    final discoveredBindings = <PlayxBinding>{};
+    _collectBindings(router.configuration.routes, discoveredBindings);
+    _bindings.addAll(discoveredBindings);
+    for (final binding in _bindings) {
+      await binding.onInitApp();
+    }
+  }
+
+  /// Recursively collects all [PlayxBinding] instances from a list of routes.
+  static void _collectBindings(
+    List<RouteBase> routes,
+    Set<PlayxBinding> bindings,
+  ) {
+    for (final route in routes) {
+      if (route is PlayxRoute && route.binding != null) {
+        bindings.add(route.binding!);
+      }
+      // Recurse into sub-routes
+      if (route is GoRoute) {
+        _collectBindings(route.routes, bindings);
+      } else if (route is ShellRoute) {
+        _collectBindings(route.routes, bindings);
+      } else if (route is StatefulShellRoute) {
+        for (final branch in route.branches) {
+          _collectBindings(branch.routes, bindings);
+        }
+      }
+    }
   }
 
   /// Sets up navigation for web applications.
