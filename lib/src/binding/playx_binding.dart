@@ -128,12 +128,6 @@ abstract class PlayxBinding {
   /// - [context]: The [BuildContext] of the route.
   Future<void> onHidden(BuildContext context) async {}
 
-  /// Determines whether [onExit] should be executed when the route is exited.
-  ///
-  /// **Important:** This field is managed internally by the PlayxNavigation system
-  /// and should not be modified directly by subclasses.
-  bool shouldExecuteOnExit = false;
-
   /// Represents the current state of the page within its lifecycle.
   ///
   /// - [PlayxPageState.enter]: When the route is first entered.

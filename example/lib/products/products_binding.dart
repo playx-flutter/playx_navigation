@@ -1,4 +1,4 @@
-import 'package:flutter/src/widgets/framework.dart';
+import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 
 class ProductsBinding extends PlayxBinding {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 import 'package:playx_navigation_example/navigation/routes.dart';
 
+import '../products/product.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -22,7 +24,19 @@ class _HomePageState extends State<HomePage> {
             const Text('Home'),
             ElevatedButton(
               onPressed: () {
-                PlayxNavigation.toNamed(Routes.products);
+                // PlayxNavigation.toNamed(Routes.products);
+                final item = Product(
+                  id: 1,
+                  name: 'Product ',
+                  description: 'Description of product ',
+                  imageUrl: 'https://picsum.photos/200/300?random=',
+                  price: 100.0,
+                );
+                PlayxNavigation.toNamed(Routes.details,
+                    pathParameters: {
+                      'id': item.id.toString(),
+                    },
+                    extra: item);
               },
               child: const Text('Products'),
             ),
