@@ -10,6 +10,8 @@
 - **New `bindings`**: A static getter that returns an unmodifiable list of all discovered `PlayxBinding` instances from the route tree.
 - **New `findBinding<T>()`**: Type-safe lookup to retrieve a specific binding by its concrete type. Throws `StateError` if not found.
 - **New `findBindingOrNull<T>()`**: Same as `findBinding<T>()` but returns `null` instead of throwing if no match is found.
+- **Custom Loading Widget**: Added `loadingWidget` option to `PlayxRoute` and `PlayxShellBranch`. This widget is displayed while `onEnter` is being initialized, defaulting to `SizedBox.shrink()`.
+- **Initialization Blocking**: The route's child widget is only built after `onEnter` completes. This ensures dependencies registered in `onEnter` (e.g., GetX controllers) are available during the first build.
 
 ### Lifecycle Refactoring (Breaking Changes)
 - **Removed redirect hack**: Binding lifecycle methods (`onEnter`, `onReEnter`) are no longer triggered through GoRoute's `redirect` callback. The `redirect` parameter on `PlayxRoute` is now passed through directly for user-defined redirection logic only.

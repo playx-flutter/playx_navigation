@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
@@ -80,6 +81,10 @@ class PlayxRoute extends GoRoute {
   /// Defaults to [PlayxPageConfiguration()].
   final PlayxPageConfiguration pageConfiguration;
 
+  /// An optional widget that is displayed while the [binding]'s `onEnter` is being initialized.
+  /// Defaults to [SizedBox.shrink()].
+  final Widget? loadingWidget;
+
   PlayxRoute({
     required super.path,
     super.name,
@@ -88,6 +93,7 @@ class PlayxRoute extends GoRoute {
     this.pageConfiguration = const PlayxPageConfiguration(),
     super.parentNavigatorKey,
     this.binding,
+    this.loadingWidget,
     super.redirect,
     super.onExit,
     super.routes = const <RouteBase>[],
@@ -100,6 +106,7 @@ class PlayxRoute extends GoRoute {
                   : PlayxPage(
                       binding: binding,
                       state: state,
+                      loadingWidget: loadingWidget,
                       child: builder(ctx, state),
                     ),
               state: state,

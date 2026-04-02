@@ -11,6 +11,8 @@ class DetailsBinding extends PlayxBinding {
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
     final id = state.pathParameters['id'];
     print('PlayxNavigation: Product Details #$id onEnter');
+    // Simulate data fetching to show loading widget
+    await Future.delayed(const Duration(seconds: 2));
   }
 
   @override

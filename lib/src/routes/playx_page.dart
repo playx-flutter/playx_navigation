@@ -22,11 +22,16 @@ class PlayxPage extends StatefulWidget {
   final GoRouterState state;
   final Widget child;
 
+  /// An optional widget that is displayed while the [binding]'s `onEnter` is being initialized.
+  /// Defaults to [SizedBox.shrink()].
+  final Widget? loadingWidget;
+
   const PlayxPage({
     super.key,
     required this.binding,
     required this.state,
     required this.child,
+    this.loadingWidget,
   });
 
   @override
@@ -106,7 +111,7 @@ class _PlayxPageState extends State<PlayxPage> {
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const SizedBox.shrink();
+      return widget.loadingWidget ?? const SizedBox.shrink();
     }
     return widget.child;
   }

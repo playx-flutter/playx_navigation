@@ -279,6 +279,8 @@ After initialization, all discovered `PlayxBinding` instances are stored and can
 
 - **App Initialization:** Register app-level dependencies (repositories, datasources, services) via `onInitApp`, called once at startup.
 - **Widget-Lifecycle Driven:** `onEnter` fires from `PlayxPage.initState` (once on mount), `onExit` fires from `PlayxPage.dispose` (only when truly removed from the tree).
+- **Initialization Blocking:** The route's child widget is only built after its binding's `onEnter` completes. This guarantees any dependencies registered in `onEnter` (like GetX controllers) are available during the first build.
+- **Custom Loading Widget:** Each route can provide a `loadingWidget` to be displayed while `onEnter` is initializing (defaults to `SizedBox.shrink()`).
 - **Route-Change Driven:** `onHidden` and `onReEnter` fire from the route-change listener when the top route changes.
 - **Shell Route Aware:** In `StatefulShellRoute`, branch switching fires `onHidden`/`onReEnter` (not `onExit`/`onEnter`) because the widget stays alive in its branch.
 - **Binding Access:** Retrieve any binding by type via `PlayxNavigation.findBinding<T>()` after initialization.

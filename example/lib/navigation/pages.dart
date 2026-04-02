@@ -85,6 +85,9 @@ class AppPages {
                 builder: (context, state) =>
                     ProductDetailsPage(product: state.extra as Product?),
                 binding: DetailsBinding(),
+                loadingWidget: const Center(
+                  child: CircularProgressIndicator(),
+                ),
               ),
             ],
           ),
