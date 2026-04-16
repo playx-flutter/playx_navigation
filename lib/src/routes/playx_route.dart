@@ -14,62 +14,70 @@ import '../models/playx_page_transition.dart';
 /// capabilities, including custom animations for page transitions, configurable
 /// settings for pages, and bindings for route-specific lifecycle events.
 ///
-/// **Shell builder support:**
+/// **Two builder modes:**
+///
+/// 1. **Standard builder** (`builder`): Uses the classic `(context, state)` signature.
+///    The library automatically manages loading/content switching using
+///    [loadingWidget], [shellBuilder], [waitForBinding], and [initTransitionDuration].
+///
+/// 2. **Init-aware builder** (`initBuilder`): Uses `(context, state, isInitialized)`.
+///    The user receives the initialization state and takes full control of
+///    what to render. Shell builder, loading widget, and other auto-management
+///    features are not applied.
+///
+/// Only one of [builder] or [initBuilder] should be provided.
+///
+/// **Shell builder support (standard builder only):**
 /// When [shellBuilder] is provided, the page's outer chrome (AppBar, Drawer,
 /// Scaffold) is rendered immediately during navigation transitions. Only the
 /// body content waits for the binding's `onEnter` to complete, preventing
 /// blank frames during page transitions.
 ///
-/// **Non-blocking initialization:**
-/// Set [waitForBinding] to `false` to render the page content immediately while
-/// `onEnter` runs in the background. The builder receives `isInitialized = false`
-/// until the binding is ready.
-///
 /// **Example Usage:**
 /// ```dart
-/// // With shell builder — AppBar shows immediately:
+/// // Standard builder — library manages loading:
 /// PlayxRoute(
 ///   path: '/channels',
 ///   name: 'channels',
+///   builder: (context, state) => ChannelsListView(),
+///   binding: ChannelsBinding(),
 ///   shellBuilder: (context, state, isInitialized, child) => Scaffold(
 ///     appBar: AppBar(title: Text('Channels')),
-///     drawer: MyDrawer(),
 ///     body: child,
 ///   ),
-///   builder: (context, state, isInitialized) => ChannelsListView(),
-///   binding: ChannelsBinding(),
 /// )
 ///
-/// // Without shell — uses isInitialized to handle loading:
+/// // Init-aware builder — user handles everything:
 /// PlayxRoute(
 ///   path: '/profile',
 ///   name: 'profile',
-///   builder: (context, state, isInitialized) {
+///   initBuilder: (context, state, isInitialized) {
 ///     if (!isInitialized) return ProfileSkeleton();
 ///     return ProfilePage();
 ///   },
 ///   binding: ProfileBinding(),
-///   waitForBinding: false,
 /// )
 /// ```
 ///
 /// **Parameters:**
 /// - `path`: The URL path of the route, for example, `/profile`.
 /// - `name`: An optional name for the route, which is useful for navigation and redirection.
-/// - `builder`: A [PlayxRouteWidgetBuilder] that builds the widget for this route,
-///   receiving the current context, state, and initialization status.
+/// - `builder`: A [GoRouterWidgetBuilder] — classic `(context, state)` builder.
+///   The library automatically manages loading and content switching.
+/// - `initBuilder`: A [PlayxRouteWidgetBuilder] — receives `(context, state, isInitialized)`.
+///   The user controls what to render based on initialization state.
 /// - `shellBuilder`: An optional [PlayxShellWidgetBuilder] that wraps the page
-///   content with persistent chrome (AppBar, Drawer). Overrides global default.
-/// - `transition`: Specifies the page transition animation to be used. Defaults to [PlayxPageTransition.cupertino].
-/// - `pageConfiguration`: Configures various settings for the page, such as title and key. Defaults to [PlayxPageConfiguration()].
+///   content with persistent chrome (AppBar, Drawer). Only applies with [builder].
+/// - `transition`: Specifies the page transition animation. Defaults to [PlayxPageTransition.cupertino].
+/// - `pageConfiguration`: Configures page settings such as title and key. Defaults to [PlayxPageConfiguration()].
 /// - `parentNavigatorKey`: An optional key for the parent navigator.
-/// - `binding`: An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
-/// - `loadingWidget`: An optional widget shown while `onEnter` is executing. Overrides global default.
-/// - `waitForBinding`: Whether to block the build on `onEnter`. `null` uses the global default.
-/// - `initTransitionDuration`: Duration for crossfade animation between loading and content. `null` uses global default.
-/// - `redirect`: An optional callback function for custom redirection logic.
-/// - `onExit`: An optional callback function for handling logic when the route is exited.
-/// - `routes`: A list of nested subroutes for this route. Defaults to an empty list.
+/// - `binding`: An optional [PlayxBinding] for route-specific lifecycle events.
+/// - `loadingWidget`: Widget shown while `onEnter` is executing. Only applies with [builder].
+/// - `waitForBinding`: Whether to block the build on `onEnter`. Only applies with [builder].
+/// - `initTransitionDuration`: Duration for crossfade animation. Only applies with [builder].
+/// - `redirect`: An optional callback for custom redirection logic.
+/// - `onExit`: An optional callback for handling logic when the route is exited.
+/// - `routes`: A list of nested subroutes. Defaults to an empty list.
 ///
 /// **Behavior:**
 /// - **Page Transition:** The [transition] parameter allows for custom animations when transitioning between pages.
@@ -101,28 +109,29 @@ class PlayxRoute extends GoRoute {
   /// Specifies the page transition animation to be used.
   ///
   /// The [transition] determines the animation effect applied when navigating between pages for this route.
-  /// Defaults to [PlayxPageTransition.cupertino]. Other options might include [PlayxPageTransition.material], [PlayxPageTransition.native], etc.
+  /// Defaults to [PlayxPageTransition.cupertino].
   final PlayxPageTransition transition;
 
   /// Configures various settings for the page.
   ///
-  /// The [pageConfiguration] parameter allows you to set page-specific configurations such as title, key, and other properties.
-  /// Or Add custom transitions, animations, and other page-specific settings.
+  /// The [pageConfiguration] parameter allows you to set page-specific configurations
+  /// such as title, key, and other properties, or add custom transitions.
   /// Defaults to [PlayxPageConfiguration()].
   final PlayxPageConfiguration pageConfiguration;
 
-  /// An optional widget that is displayed while the [binding]'s `onEnter` is being initialized.
+  /// An optional widget displayed while the [binding]'s `onEnter` is being initialized.
+  /// Only applies when using [builder], not [initBuilder].
   ///
   /// Overrides the global [PlayxPageConfig.loadingWidget].
   /// Defaults to [SizedBox.shrink()] when neither route-level nor global is set.
   final Widget? loadingWidget;
 
   /// Optional shell builder for persistent page chrome (AppBar, Drawer, Scaffold).
+  /// Only applies when using [builder], not [initBuilder].
   ///
   /// When provided, the shell is rendered **immediately** during navigation
-  /// transitions. The `child` parameter passed to the shell builder contains
-  /// either the actual page content (when initialized) or a loading widget
-  /// (while `onEnter` is running).
+  /// transitions. The `child` parameter contains either the page content
+  /// (when initialized) or a loading widget (while `onEnter` is running).
   ///
   /// Overrides the global [PlayxPageConfig.shellBuilder].
   ///
@@ -136,28 +145,26 @@ class PlayxRoute extends GoRoute {
   final PlayxShellWidgetBuilder? shellBuilder;
 
   /// Whether to block the page build until `onEnter` completes.
+  /// Only applies when using [builder], not [initBuilder].
   ///
   /// - `null` (default): Use the global default from [PlayxPageConfig.waitForBinding].
   /// - `true`: Block the build — show loading widget or shell until `onEnter` completes.
-  /// - `false`: Render content immediately — `onEnter` runs in the background,
-  ///   and the builder receives `isInitialized = false` until ready.
+  /// - `false`: Render content immediately — `onEnter` runs in the background.
   final bool? waitForBinding;
 
-  /// Duration for the crossfade animation between the loading widget and
-  /// the initialized page content.
-  ///
-  /// When set, an [AnimatedSwitcher] smoothly transitions from the loading
-  /// state to the actual content after `onEnter` completes.
+  /// Duration for the crossfade animation between loading and content.
+  /// Only applies when using [builder], not [initBuilder].
   ///
   /// - `null` (default): Use the global default from [PlayxPageConfig.initTransitionDuration].
   /// - [Duration.zero]: No animation (instant swap).
-  /// - Any positive duration: Crossfade with that duration (e.g., `Duration(milliseconds: 300)`).
+  /// - Any positive duration: Crossfade with that duration.
   final Duration? initTransitionDuration;
 
   PlayxRoute({
     required super.path,
     super.name,
-    required PlayxRouteWidgetBuilder builder,
+    GoRouterWidgetBuilder? builder,
+    PlayxRouteWidgetBuilder? initBuilder,
     this.transition = PlayxPageTransition.cupertino,
     this.pageConfiguration = const PlayxPageConfiguration(),
     super.parentNavigatorKey,
@@ -169,21 +176,40 @@ class PlayxRoute extends GoRoute {
     super.redirect,
     super.onExit,
     super.routes = const <RouteBase>[],
-  }) : super(
+  })  : assert(
+          builder != null || initBuilder != null,
+          'Either builder or initBuilder must be provided.',
+        ),
+        assert(
+          builder == null || initBuilder == null,
+          'Cannot provide both builder and initBuilder. '
+          'Use builder for library-managed loading, or initBuilder for full control.',
+        ),
+        super(
           pageBuilder: (ctx, state) {
+            final Widget pageChild;
+
+            if (binding == null) {
+              // No binding — always initialized.
+              pageChild = initBuilder != null
+                  ? initBuilder(ctx, state, true)
+                  : builder!(ctx, state);
+            } else {
+              pageChild = PlayxPage(
+                binding: binding,
+                state: state,
+                childBuilder: builder,
+                initBuilder: initBuilder,
+                shellBuilder: shellBuilder,
+                loadingWidget: loadingWidget,
+                waitForBinding: waitForBinding,
+                initTransitionDuration: initTransitionDuration,
+              );
+            }
+
             return transition.buildPage(
               config: pageConfiguration,
-              child: binding == null
-                  ? builder(ctx, state, true)
-                  : PlayxPage(
-                      binding: binding,
-                      state: state,
-                      childBuilder: builder,
-                      shellBuilder: shellBuilder,
-                      loadingWidget: loadingWidget,
-                      waitForBinding: waitForBinding,
-                      initTransitionDuration: initTransitionDuration,
-                    ),
+              child: pageChild,
               state: state,
             );
           },

@@ -5,17 +5,14 @@ import 'package:playx_navigation/playx_navigation.dart';
 class PlayxShellBranch extends StatefulShellBranch {
   /// Creates a new [PlayxShellBranch] with a single route.
   ///
-  /// The [path] is the route path that this branch will handle.
-  /// The [name] is the name of the route.
-  /// The [builder] is the widget builder for the route, receiving `isInitialized` state.
+  /// Provide either [builder] or [initBuilder], but not both:
+  /// - [builder]: Classic `(context, state)` — library manages loading state.
+  /// - [initBuilder]: New `(context, state, isInitialized)` — user has full control.
+  ///
   /// The [shellBuilder] wraps the page content with persistent chrome (AppBar, Drawer).
   /// The [waitForBinding] controls whether to block the build on `onEnter`.
-  /// The [transition] is the page transition for the route.
-  /// The [pageConfiguration] is the page configuration for the route.
-  /// The [parentNavigatorKey] is the parent navigator key.
-  /// The [binding] is the binding for the route.
-  /// The [redirect] is the redirect callback for the route.
-  /// The [onExit] is the exit callback for the route.
+  /// The [initTransitionDuration] sets the crossfade animation duration.
+  /// These only apply when using [builder], not [initBuilder].
   PlayxShellBranch({
     super.navigatorKey,
     super.initialLocation,
@@ -24,7 +21,8 @@ class PlayxShellBranch extends StatefulShellBranch {
     super.preload = false,
     required String path,
     String? name,
-    required PlayxRouteWidgetBuilder builder,
+    GoRouterWidgetBuilder? builder,
+    PlayxRouteWidgetBuilder? initBuilder,
     PlayxPageTransition transition = PlayxPageTransition.cupertino,
     PlayxPageConfiguration pageConfiguration = const PlayxPageConfiguration(),
     GlobalKey<NavigatorState>? parentNavigatorKey,
@@ -36,11 +34,21 @@ class PlayxShellBranch extends StatefulShellBranch {
     GoRouterRedirect? redirect,
     ExitCallback? onExit,
     List<RouteBase> routes = const [],
-  }) : super(routes: [
+  })  : assert(
+          builder != null || initBuilder != null,
+          'Either builder or initBuilder must be provided.',
+        ),
+        assert(
+          builder == null || initBuilder == null,
+          'Cannot provide both builder and initBuilder. '
+          'Use builder for library-managed loading, or initBuilder for full control.',
+        ),
+        super(routes: [
           PlayxRoute(
             path: path,
             name: name,
             builder: builder,
+            initBuilder: initBuilder,
             transition: transition,
             pageConfiguration: pageConfiguration,
             parentNavigatorKey: parentNavigatorKey,

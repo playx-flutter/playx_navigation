@@ -13,16 +13,21 @@ import 'package:playx_navigation/src/models/playx_page_config.dart';
 /// the visible route. This prevents unnecessary controller registration
 /// and API calls for pages the user hasn't navigated to yet.
 ///
-/// **Shell builder support:**
+/// **Two builder paths:**
+///
+/// 1. **Standard builder** (`childBuilder`): The library automatically manages
+///    loading state — showing the loading widget / shell while `onEnter` runs
+///    and revealing the content once initialized.
+///
+/// 2. **Init-aware builder** (`initBuilder`): The user receives `isInitialized`
+///    and takes full control of what to render during and after initialization.
+///    Shell builder, loading widget, and transition animation are NOT applied.
+///
+/// **Shell builder support (standard builder only):**
 /// When a [shellBuilder] is provided (either per-route or globally via
 /// [PlayxPageConfig]), the shell (AppBar, Drawer, Scaffold) is rendered
 /// immediately during the page transition. Only the body content waits
 /// for initialization, preventing blank frames during navigation.
-///
-/// **Non-blocking initialization:**
-/// When [waitForBinding] is `false`, the page content renders immediately
-/// with `isInitialized = false`. The binding's `onEnter` still runs in the
-/// background and triggers a rebuild when complete.
 ///
 /// **Lifecycle:**
 /// - Mount as top route → `onEnter` fires immediately.
@@ -33,30 +38,39 @@ class PlayxPage extends StatefulWidget {
   final PlayxBinding binding;
   final GoRouterState state;
 
-  /// Builder function for the page content. Receives [isInitialized] to allow
-  /// the content to react to the binding's initialization state.
-  final PlayxRouteWidgetBuilder childBuilder;
+  /// Standard builder — library manages loading/content switching automatically.
+  /// Receives only `(context, state)`.
+  final GoRouterWidgetBuilder? childBuilder;
+
+  /// Init-aware builder — user gets `isInitialized` and handles everything.
+  /// Receives `(context, state, isInitialized)`.
+  /// When provided, [shellBuilder], [loadingWidget], [waitForBinding], and
+  /// [initTransitionDuration] are not applied (user has full control).
+  final PlayxRouteWidgetBuilder? initBuilder;
 
   /// Optional shell builder for persistent chrome (AppBar, Drawer, Scaffold).
   /// When provided, the shell is rendered immediately — only the body content
   /// depends on initialization state.
   /// Overrides the global [PlayxPageConfig.shellBuilder].
+  /// Only applies when using [childBuilder], not [initBuilder].
   final PlayxShellWidgetBuilder? shellBuilder;
 
   /// An optional widget that is displayed while the [binding]'s `onEnter` is
   /// being initialized. Overrides the global [PlayxPageConfig.loadingWidget].
   /// Defaults to [SizedBox.shrink()] when neither route-level nor global is set.
+  /// Only applies when using [childBuilder], not [initBuilder].
   final Widget? loadingWidget;
 
   /// Whether to block the page build until `onEnter` completes.
+  /// Only applies when using [childBuilder], not [initBuilder].
   ///
   /// - `null`: Use the global default from [PlayxPageConfig.waitForBinding].
   /// - `true`: Block the build — show loading/shell until `onEnter` completes.
-  /// - `false`: Render immediately — `onEnter` runs in background, builder
-  ///   receives `isInitialized = false` until ready.
+  /// - `false`: Render immediately — content is shown before `onEnter` completes.
   final bool? waitForBinding;
 
   /// Duration for the crossfade animation between loading and content.
+  /// Only applies when using [childBuilder], not [initBuilder].
   ///
   /// When set, an [AnimatedSwitcher] smoothly transitions from the loading
   /// widget to the page content after `onEnter` completes.
@@ -70,12 +84,16 @@ class PlayxPage extends StatefulWidget {
     super.key,
     required this.binding,
     required this.state,
-    required this.childBuilder,
+    this.childBuilder,
+    this.initBuilder,
     this.shellBuilder,
     this.loadingWidget,
     this.waitForBinding,
     this.initTransitionDuration,
-  });
+  }) : assert(
+          childBuilder != null || initBuilder != null,
+          'Either childBuilder or initBuilder must be provided.',
+        );
 
   @override
   State<PlayxPage> createState() => _PlayxPageState();
@@ -170,7 +188,12 @@ class _PlayxPageState extends State<PlayxPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Resolve effective configuration: route-level > global > defaults.
+    // --- Init-aware builder: user has full control ---
+    if (widget.initBuilder != null) {
+      return widget.initBuilder!(context, widget.state, _initialized);
+    }
+
+    // --- Standard builder: library manages loading state ---
     final globalConfig = PlayxPageConfigProvider.of(context);
 
     final effectiveShell = widget.shellBuilder ?? globalConfig?.shellBuilder;
@@ -182,10 +205,10 @@ class _PlayxPageState extends State<PlayxPage> {
     final effectiveDuration =
         widget.initTransitionDuration ?? globalConfig?.initTransitionDuration;
 
-    // --- Shell builder present: shell always renders, child depends on init ---
+    // Shell builder present: shell always renders, child depends on init.
     if (effectiveShell != null) {
       final child = _initialized
-          ? widget.childBuilder(context, widget.state, true)
+          ? widget.childBuilder!(context, widget.state)
           : effectiveLoading;
       return effectiveShell(
         context,
@@ -195,16 +218,15 @@ class _PlayxPageState extends State<PlayxPage> {
       );
     }
 
-    // --- No shell: respect waitForBinding ---
+    // No shell: respect waitForBinding.
     if (!_initialized && effectiveWait) {
-      // Blocking mode (current default behavior): show loading until ready.
+      // Blocking mode (default): show loading until ready.
       return _withTransition(effectiveLoading, effectiveDuration);
     }
 
     // Either initialized, or non-blocking mode: render the child.
-    // The child receives _initialized so it can handle its own loading state.
     return _withTransition(
-      widget.childBuilder(context, widget.state, _initialized),
+      widget.childBuilder!(context, widget.state),
       effectiveDuration,
     );
   }

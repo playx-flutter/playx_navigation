@@ -34,7 +34,7 @@ class AppPages {
       PlayxRoute(
         path: Paths.splash,
         name: Routes.splash,
-        builder: (context, state, isInitialized) => const SplashPage(),
+        builder: (context, state) => const SplashPage(),
         binding: SplashBinding(),
       ),
 
@@ -68,7 +68,7 @@ class AppPages {
           PlayxShellBranch(
             name: Routes.home,
             path: Paths.home,
-            builder: (context, state, isInitialized) => const HomePage(),
+            builder: (context, state) => const HomePage(),
             binding: HomeBinding(),
           ),
 
@@ -76,13 +76,13 @@ class AppPages {
           PlayxShellBranch(
             path: Paths.products,
             name: Routes.products,
-            builder: (context, state, isInitialized) => const ProductsPage(),
+            builder: (context, state) => const ProductsPage(),
             binding: ProductsBinding(),
             routes: [
               PlayxRoute(
                 path: Paths.productDetails,
                 name: Routes.productDetails,
-                builder: (context, state, isInitialized) =>
+                builder: (context, state) =>
                     ProductDetailsPage(product: state.extra as Product?),
                 binding: DetailsBinding(),
                 loadingWidget: const Center(
@@ -96,13 +96,13 @@ class AppPages {
           PlayxShellBranch(
             path: Paths.explore,
             name: Routes.explore,
-            builder: (context, state, isInitialized) => const ExplorePage(),
+            builder: (context, state) => const ExplorePage(),
             binding: ExploreBinding(),
             routes: [
               PlayxRoute(
                 path: Paths.exploreDetails,
                 name: Routes.exploreDetails,
-                builder: (context, state, isInitialized) =>
+                builder: (context, state) =>
                     ExploreDetailsPage(product: state.extra as Product?),
                 binding: ExploreDetailsBinding(),
               ),
