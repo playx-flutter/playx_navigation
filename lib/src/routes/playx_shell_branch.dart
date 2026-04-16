@@ -7,7 +7,9 @@ class PlayxShellBranch extends StatefulShellBranch {
   ///
   /// The [path] is the route path that this branch will handle.
   /// The [name] is the name of the route.
-  /// The [builder] is the widget builder for the route.
+  /// The [builder] is the widget builder for the route, receiving `isInitialized` state.
+  /// The [shellBuilder] wraps the page content with persistent chrome (AppBar, Drawer).
+  /// The [waitForBinding] controls whether to block the build on `onEnter`.
   /// The [transition] is the page transition for the route.
   /// The [pageConfiguration] is the page configuration for the route.
   /// The [parentNavigatorKey] is the parent navigator key.
@@ -22,12 +24,15 @@ class PlayxShellBranch extends StatefulShellBranch {
     super.preload = false,
     required String path,
     String? name,
-    required GoRouterWidgetBuilder builder,
+    required PlayxRouteWidgetBuilder builder,
     PlayxPageTransition transition = PlayxPageTransition.cupertino,
     PlayxPageConfiguration pageConfiguration = const PlayxPageConfiguration(),
     GlobalKey<NavigatorState>? parentNavigatorKey,
     PlayxBinding? binding,
     Widget? loadingWidget,
+    PlayxShellWidgetBuilder? shellBuilder,
+    bool? waitForBinding,
+    Duration? initTransitionDuration,
     GoRouterRedirect? redirect,
     ExitCallback? onExit,
     List<RouteBase> routes = const [],
@@ -41,6 +46,9 @@ class PlayxShellBranch extends StatefulShellBranch {
             parentNavigatorKey: parentNavigatorKey,
             binding: binding,
             loadingWidget: loadingWidget,
+            shellBuilder: shellBuilder,
+            waitForBinding: waitForBinding,
+            initTransitionDuration: initTransitionDuration,
             redirect: redirect,
             onExit: onExit,
             routes: routes,

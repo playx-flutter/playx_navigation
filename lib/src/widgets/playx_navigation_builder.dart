@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/binding/playx_binding.dart';
 import 'package:playx_navigation/src/binding/playx_page_state.dart';
+import 'package:playx_navigation/src/models/playx_page_config.dart';
 import 'package:playx_navigation/src/playx_navigation.dart';
 
 import '../routes/playx_route.dart';
@@ -14,6 +15,11 @@ import '../routes/playx_route.dart';
 /// initialized and provides a way to execute specific logic when navigating
 /// between routes — specifically handling [PlayxBinding.onHidden] and
 /// [PlayxBinding.onReEnter] lifecycle events.
+///
+/// **Global configuration:**
+/// Use the [config] parameter to set default behavior for all routes,
+/// including a global loading widget, shell builder, and whether routes
+/// should block their build on `onEnter` completion.
 ///
 /// **Lifecycle responsibilities:**
 /// - `onHidden`: Fired when the current route is covered by another route
@@ -29,6 +35,14 @@ import '../routes/playx_route.dart';
 /// ```dart
 /// PlayxNavigationBuilder(
 ///   router: myRouter,
+///   config: PlayxPageConfig(
+///     loadingWidget: Center(child: CircularProgressIndicator()),
+///     waitForBinding: false,
+///     shellBuilder: (context, state, isInitialized, child) => Scaffold(
+///       appBar: AppBar(title: Text('My App')),
+///       body: child,
+///     ),
+///   ),
 ///   builder: (context) {
 ///     return MyApp();
 ///   },
@@ -48,7 +62,23 @@ class PlayxNavigationBuilder extends StatefulWidget {
   /// called elsewhere in your code.
   final GoRouter? router;
 
-  const PlayxNavigationBuilder({super.key, required this.builder, this.router});
+  /// Optional global configuration for all [PlayxPage] instances.
+  ///
+  /// Sets defaults for [loadingWidget], [waitForBinding], and [shellBuilder]
+  /// that individual routes can override.
+  ///
+  /// When not provided, routes use built-in defaults:
+  /// - `loadingWidget`: [SizedBox.shrink()]
+  /// - `waitForBinding`: `true` (block build until `onEnter` completes)
+  /// - `shellBuilder`: `null` (no shell)
+  final PlayxPageConfig? config;
+
+  const PlayxNavigationBuilder({
+    super.key,
+    required this.builder,
+    this.router,
+    this.config,
+  });
 
   @override
   State<PlayxNavigationBuilder> createState() => _PlayxNavigationBuilderState();
@@ -177,6 +207,16 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
 
   @override
   Widget build(BuildContext context) {
-    return Builder(builder: widget.builder);
+    Widget child = Builder(builder: widget.builder);
+
+    // Wrap with config provider if a config is specified.
+    if (widget.config != null) {
+      child = PlayxPageConfigProvider(
+        config: widget.config!,
+        child: child,
+      );
+    }
+
+    return child;
   }
 }

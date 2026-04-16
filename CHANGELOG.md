@@ -1,5 +1,56 @@
 # Changelog
 
+## 2.0.0
+
+### Breaking Changes
+- **Builder signature updated**: `PlayxRoute` and `PlayxShellBranch` now use `PlayxRouteWidgetBuilder` which includes an `isInitialized` parameter:
+  ```dart
+  // Before (1.x):
+  builder: (context, state) => MyPage()
+  // After (2.0):
+  builder: (context, state, isInitialized) => MyPage()
+  ```
+
+### New Features
+- **Shell Builder**: Added `shellBuilder` parameter to `PlayxRoute`, `PlayxShellBranch`, and `PlayxPageConfig`. The shell (AppBar, Drawer, Scaffold) renders immediately during navigation transitions, preventing blank frames. Only the body content waits for the binding's `onEnter` to complete.
+  ```dart
+  PlayxRoute(
+    path: '/channels',
+    shellBuilder: (context, state, isInitialized, child) => Scaffold(
+      appBar: AppBar(title: Text('Channels')),
+      drawer: MyDrawer(),
+      body: child,
+    ),
+    builder: (context, state, isInitialized) => ChannelsListView(),
+    binding: ChannelsBinding(),
+  )
+  ```
+- **Non-blocking initialization**: Added `waitForBinding` parameter to `PlayxRoute`, `PlayxShellBranch`, and `PlayxPageConfig`. When set to `false`, the page renders immediately with `isInitialized = false` while `onEnter` runs in the background.
+- **Global page configuration via `PlayxPageConfig`**: Added `config` parameter to `PlayxNavigationBuilder` to set global defaults for `loadingWidget`, `waitForBinding`, and `shellBuilder`. Individual routes can override any of these settings.
+  ```dart
+  PlayxNavigationBuilder(
+    router: router,
+    config: PlayxPageConfig(
+      loadingWidget: Center(child: CircularProgressIndicator()),
+      waitForBinding: false,
+      shellBuilder: (context, state, isInitialized, child) => Scaffold(
+        appBar: AppBar(title: Text('My App')),
+        body: child,
+      ),
+    ),
+    builder: (context) => MyApp(),
+  )
+  ```
+- **New typedefs**: `PlayxRouteWidgetBuilder` and `PlayxShellWidgetBuilder` for type-safe builder signatures.
+- **Initialization transition animation**: Added `initTransitionDuration` parameter to `PlayxRoute`, `PlayxShellBranch`, and `PlayxPageConfig`. When set, an `AnimatedSwitcher` crossfade smoothly transitions from the loading widget to the page content.
+
+### Configuration Resolution
+Route-level parameter → Global `PlayxPageConfig` → Built-in default:
+- `loadingWidget`: Route > Global > `SizedBox.shrink()`
+- `waitForBinding`: Route > Global > `true`
+- `shellBuilder`: Route > Global > `null`
+- `initTransitionDuration`: Route > Global > `null` (no animation)
+
 ## 1.0.0
 
 ### New Features

@@ -10,6 +10,9 @@
 -   **App Initialization Lifecycle**: Register app-level dependencies (repositories, datasources, services) via `onInitApp` in your bindings, called automatically during boot.
 -   **Initialization Awaiting**: Use `PlayxNavigation.ensureInitialized` to gate startup logic until all bindings are initialized.
 -   **Binding Registry**: Access any registered binding by type via `PlayxNavigation.findBinding<T>()`.
+-   **Shell Builder**: Render page chrome (AppBar, Drawer, Scaffold) immediately during transitions — no more blank frames while bindings initialize.
+-   **Non-Blocking Initialization**: Optionally render pages immediately with `waitForBinding: false`, letting the builder react to `isInitialized` state.
+-   **Global Page Configuration**: Set default loading widgets, shell builders, and initialization behavior for all routes via `PlayxPageConfig`.
 -   **Advanced Route Configuration**: Fine-tune the behavior of your routes with extensive configuration options, including custom transitions, modal behavior, and state management.
 -   **Route Management**: Easily navigate to routes, replace routes, and handle navigation stacks without the need for buildcontext.
 -   **Custom Page Transitions**: Use predefined transitions or create your own to enhance the user experience.
@@ -20,7 +23,7 @@ Add `Playx Navigation` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  playx_navigation: ^0.0.1 
+  playx_navigation: ^2.0.0 
 ```
 Then, run:
 
@@ -83,19 +86,19 @@ final router = GoRouter(
     PlayxRoute(  
       path: Paths.home,  
       name: Routes.home,  
-      builder: (context, state) => const HomePage(),  
+      builder: (context, state, isInitialized) => const HomePage(),  
       binding: HomeBinding(),  
     ),  
     PlayxRoute(  
       path: Paths.products,  
       name: Routes.products,  
-      builder: (context, state) => ProductsPage(),  
+      builder: (context, state, isInitialized) => ProductsPage(),  
       binding: ProductsBinding(),  
       routes: [  
         PlayxRoute(  
           path: Paths.details,  
           name: Routes.details,  
-          builder: (context, state) =>   
+          builder: (context, state, isInitialized) =>   
             ProductDetailsPage(product: state.extra as Product),  
           binding: DetailsBinding(),  
         ),  
@@ -116,7 +119,10 @@ class MyApp extends StatelessWidget {
   @override  
   Widget build(BuildContext context) {  
     return PlayxNavigationBuilder(  
-      router: router,  
+      router: router,
+      config: PlayxPageConfig(
+        loadingWidget: Center(child: CircularProgressIndicator()),
+      ),  
       builder: (context) {  
         return MaterialApp.router(  
           title: 'Playx',  
@@ -279,8 +285,9 @@ After initialization, all discovered `PlayxBinding` instances are stored and can
 
 - **App Initialization:** Register app-level dependencies (repositories, datasources, services) via `onInitApp`, called once at startup.
 - **Widget-Lifecycle Driven:** `onEnter` fires from `PlayxPage.initState` (once on mount), `onExit` fires from `PlayxPage.dispose` (only when truly removed from the tree).
-- **Initialization Blocking:** The route's child widget is only built after its binding's `onEnter` completes. This guarantees any dependencies registered in `onEnter` (like GetX controllers) are available during the first build.
-- **Custom Loading Widget:** Each route can provide a `loadingWidget` to be displayed while `onEnter` is initializing (defaults to `SizedBox.shrink()`).
+- **Initialization Blocking:** By default, the route's child widget is only built after its binding's `onEnter` completes. This guarantees any dependencies registered in `onEnter` (like GetX controllers) are available during the first build. Set `waitForBinding: false` to render immediately.
+- **Shell Builder:** Provide a `shellBuilder` to render page chrome (AppBar, Drawer, Scaffold) immediately during transitions while only the body waits for initialization.
+- **Custom Loading Widget:** Each route can provide a `loadingWidget` to be displayed while `onEnter` is initializing (defaults to `SizedBox.shrink()`). Set a global default via `PlayxPageConfig.loadingWidget`.
 - **Route-Change Driven:** `onHidden` and `onReEnter` fire from the route-change listener when the top route changes.
 - **Shell Route Aware:** In `StatefulShellRoute`, branch switching fires `onHidden`/`onReEnter` (not `onExit`/`onEnter`) because the widget stays alive in its branch.
 - **Binding Access:** Retrieve any binding by type via `PlayxNavigation.findBinding<T>()` after initialization.
@@ -370,6 +377,95 @@ class MyRouteBinding extends PlayxBinding {
 
 By extending `PlayxBinding`, you can efficiently manage both app-level initialization and route-specific lifecycle, ensuring that resources are used optimally.
 
+## Global Page Configuration
+
+### `PlayxPageConfig`
+
+Provide a `PlayxPageConfig` to `PlayxNavigationBuilder` to set global defaults for all routes. Individual route parameters override these globals.
+
+```dart
+PlayxNavigationBuilder(
+  router: router,
+  config: PlayxPageConfig(
+    // Default loading widget for all routes:
+    loadingWidget: Center(child: CircularProgressIndicator()),
+    // Don't block page build by default:
+    waitForBinding: false,
+    // Global shell for persistent AppBar:
+    shellBuilder: (context, state, isInitialized, child) => Scaffold(
+      appBar: AppBar(title: Text('My App')),
+      body: child,
+    ),
+  ),
+  builder: (context) => MyApp(),
+)
+```
+
+**Resolution order:** Route-level parameter → Global `PlayxPageConfig` → Built-in default.
+
+| Setting | Route Param | Global Config | Default |
+|---|---|---|---|
+| Loading widget | `PlayxRoute.loadingWidget` | `PlayxPageConfig.loadingWidget` | `SizedBox.shrink()` |
+| Wait for binding | `PlayxRoute.waitForBinding` | `PlayxPageConfig.waitForBinding` | `true` |
+| Shell builder | `PlayxRoute.shellBuilder` | `PlayxPageConfig.shellBuilder` | `null` |
+| Init transition | `PlayxRoute.initTransitionDuration` | `PlayxPageConfig.initTransitionDuration` | `null` (no animation) |
+
+### Shell Builder
+
+The `shellBuilder` renders page chrome (AppBar, Drawer, Scaffold) **immediately** during navigation transitions. Only the body content waits for the binding's `onEnter` to complete, preventing blank frames.
+
+```dart
+PlayxRoute(
+  path: '/channels',
+  name: 'channels',
+  shellBuilder: (context, state, isInitialized, child) => Scaffold(
+    appBar: AppBar(title: Text('Channels')),
+    drawer: isInitialized ? MyDrawer() : null,
+    body: child, // loading widget or actual content
+  ),
+  builder: (context, state, isInitialized) => ChannelsListView(),
+  binding: ChannelsBinding(),
+)
+```
+
+### Non-Blocking Initialization
+
+Set `waitForBinding: false` to render the page immediately while `onEnter` runs in the background. The builder receives `isInitialized` so it can handle its own loading state:
+
+```dart
+PlayxRoute(
+  path: '/profile',
+  name: 'profile',
+  builder: (context, state, isInitialized) {
+    if (!isInitialized) return ProfileSkeleton();
+    return ProfilePage();
+  },
+  binding: ProfileBinding(),
+  waitForBinding: false,
+)
+```
+
+### Initialization Animation
+
+Set `initTransitionDuration` to smoothly crossfade from the loading widget to the page content using an `AnimatedSwitcher`:
+
+```dart
+// Global: apply to all routes
+PlayxPageConfig(
+  initTransitionDuration: Duration(milliseconds: 300),
+)
+
+// Per-route: override for a specific route
+PlayxRoute(
+  path: '/dashboard',
+  builder: (context, state, isInitialized) => DashboardPage(),
+  binding: DashboardBinding(),
+  initTransitionDuration: Duration(milliseconds: 500),
+)
+```
+
+Set to `Duration.zero` to explicitly disable animation for a specific route when a global duration is set.
+
 ##  Configuring Routes
 
 ###  Advanced Routing and Custom Transitions with `PlayxRoute`
@@ -380,6 +476,8 @@ The `PlayxRoute` class extends the functionality of the `GoRoute` class, providi
 `PlayxRoute` is designed to enhance navigation by offering:
 
 -   **Lifecycle Management**: Attach custom logic that runs when a route is entered or exited, enabling better control over the state and behavior of your app.
+-   **Shell Builder**: Render page chrome immediately during transitions to prevent blank frames.
+-   **Non-Blocking Initialization**: Render pages immediately with `isInitialized` state for custom loading UIs.
 -   **Page Configuration**: Customize various settings like page title, transition duration, and modal behavior.
 -   **Custom Transitions**: Apply predefined or custom animations for transitioning between pages.
 
@@ -394,7 +492,7 @@ The `PlayxRoute` class extends the functionality of the `GoRoute` class, providi
 PlayxRoute(
       path: '/dashboard',
       name: 'dashboard',
-      builder: (context, state) => DashboardPage(),
+      builder: (context, state, isInitialized) => DashboardPage(),
       binding: DashboardBinding(), 
     );
  ```
@@ -443,7 +541,7 @@ Example:
 PlayxRoute(
   path: '/custom',
   name: 'customRoute',
-  builder: (context, state) => CustomPage(),
+  builder: (context, state, isInitialized) => CustomPage(),
   binding: CustomBinding(),
   pageConfiguration: PlayxPageConfiguration.customTransition(
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
