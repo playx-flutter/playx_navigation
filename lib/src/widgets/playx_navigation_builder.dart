@@ -81,8 +81,7 @@ class PlayxNavigationBuilder extends StatefulWidget {
   });
 
   @override
-  State<PlayxNavigationBuilder> createState() =>
-      _PlayxNavigationBuilderState();
+  State<PlayxNavigationBuilder> createState() => _PlayxNavigationBuilderState();
 }
 
 class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {

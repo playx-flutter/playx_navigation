@@ -173,10 +173,10 @@ class _PlayxPageState extends State<PlayxPage> {
     // Resolve effective configuration: route-level > global > defaults.
     final globalConfig = PlayxPageConfigProvider.of(context);
 
-    final effectiveShell =
-        widget.shellBuilder ?? globalConfig?.shellBuilder;
-    final effectiveLoading =
-        widget.loadingWidget ?? globalConfig?.loadingWidget ?? const SizedBox.shrink();
+    final effectiveShell = widget.shellBuilder ?? globalConfig?.shellBuilder;
+    final effectiveLoading = widget.loadingWidget ??
+        globalConfig?.loadingWidget ??
+        const SizedBox.shrink();
     final effectiveWait =
         widget.waitForBinding ?? globalConfig?.waitForBinding ?? true;
     final effectiveDuration =
