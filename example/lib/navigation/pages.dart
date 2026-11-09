@@ -42,7 +42,22 @@ class AppPages {
       StatefulShellRoute.indexedStack(
         pageBuilder: (context, state, navigationShell) => CupertinoPage(
           child: Scaffold(
-            body: navigationShell,
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Breadcrumbs of the current tab: Explore > Featured #101.
+                const SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: PlayxBreadcrumbs(
+                      mode: PlayxBreadcrumbMode.shellBranch,
+                    ),
+                  ),
+                ),
+                Expanded(child: navigationShell),
+              ],
+            ),
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: navigationShell.currentIndex,
               onTap: (index) => navigationShell.goBranch(index),
@@ -68,6 +83,7 @@ class AppPages {
           PlayxShellBranch(
             name: Routes.home,
             path: Paths.home,
+            breadcrumb: (context, state) => 'Home',
             builder: (context, state) => const HomePage(),
             binding: HomeBinding(),
           ),
@@ -76,12 +92,16 @@ class AppPages {
           PlayxShellBranch(
             path: Paths.products,
             name: Routes.products,
+            breadcrumb: (context, state) => 'Products',
             builder: (context, state) => const ProductsPage(),
             binding: ProductsBinding(),
             routes: [
               PlayxRoute(
                 path: Paths.productDetails,
                 name: Routes.productDetails,
+                breadcrumb: (context, state) =>
+                    state.extraAs<Product>()?.name ??
+                    'Product #${state.pathParameters['id']}',
                 builder: (context, state) =>
                     ProductDetailsPage(product: state.extra as Product?),
                 binding: DetailsBinding(),
@@ -96,6 +116,7 @@ class AppPages {
           PlayxShellBranch(
             path: Paths.explore,
             name: Routes.explore,
+            breadcrumb: (context, state) => 'Explore',
             builder: (context, state) => const ExplorePage(),
             binding: ExploreBinding(),
             routes: [
@@ -104,6 +125,10 @@ class AppPages {
               PlayxRoute<ExploreDetailsController>(
                 path: Paths.exploreDetails,
                 name: Routes.exploreDetails,
+                // Until the product loads; the page then sets its name at
+                // runtime with PlayxBreadcrumbLabel.
+                breadcrumb: (context, state) =>
+                    'Item #${state.pathParameters['id']}',
                 controller: (context, state) => ExploreDetailsController(
                   id: state.intPathParam('id') ?? 0,
                   product: state.extraAs<Product>(),

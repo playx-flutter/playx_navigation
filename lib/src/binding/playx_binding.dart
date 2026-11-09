@@ -84,6 +84,28 @@ abstract class PlayxBinding {
   /// ```
   FutureOr<String?> redirect(BuildContext context, GoRouterState state) => null;
 
+  /// The breadcrumb label of this binding's route, or `null` to leave it out.
+  ///
+  /// Used by `PlayxBreadcrumbs` / `PlayxNavigation.breadcrumbs`, also for
+  /// ancestor crumbs of pages that aren't on screen. [context] is the context
+  /// of the widget showing the breadcrumbs (localized strings work).
+  ///
+  /// A route's own `breadcrumb` takes precedence. To show loaded data (e.g.
+  /// the job's title), set a runtime label from a callback:
+  ///
+  /// ```dart
+  /// @override
+  /// String? breadcrumb(BuildContext context, GoRouterState state) =>
+  ///     'Job #${state.pathParameters['id']}';
+  ///
+  /// @override
+  /// Future<void> onEnter(BuildContext context, GoRouterState state) async {
+  ///   final job = await repository.getJob(state.intPathParam('id')!);
+  ///   PlayxNavigation.setBreadcrumbLabel(context, job.title);
+  /// }
+  /// ```
+  String? breadcrumb(BuildContext context, GoRouterState state) => null;
+
   /// Called when the route is entered for the first time.
   ///
   /// Use this method for initializing resources, fetching data, or setting up the UI

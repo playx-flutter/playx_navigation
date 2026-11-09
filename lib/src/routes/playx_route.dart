@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
+import '../breadcrumbs/playx_breadcrumb.dart';
 import '../controller/playx_route_controller.dart';
 import '../guards/playx_guard.dart';
 import '../models/playx_page_config.dart';
@@ -187,6 +188,17 @@ class PlayxRoute<T extends Object> extends GoRoute {
   /// ```
   final PlayxParentLocation? parentLocation;
 
+  /// The label of this route in breadcrumbs (`PlayxBreadcrumbs`,
+  /// `PlayxNavigation.breadcrumbs`). Return `null` to leave it out.
+  ///
+  /// ```dart
+  /// breadcrumb: (context, state) => 'Job #${state.pathParameters['id']}',
+  /// ```
+  ///
+  /// Takes precedence over the binding's `PlayxBinding.breadcrumb`; a page can
+  /// override it at runtime with `PlayxBreadcrumbLabel`.
+  final PlayxBreadcrumbLabelBuilder? breadcrumb;
+
   /// Builder for the widget shown when the [binding]'s `onEnter` throws or
   /// exceeds [enterTimeout]. Receives a `retry` callback.
   ///
@@ -223,6 +235,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
     Duration? initTransitionDuration,
     List<PlayxGuard> guards = const <PlayxGuard>[],
     PlayxParentLocation? parentLocation,
+    PlayxBreadcrumbLabelBuilder? breadcrumb,
     PlayxErrorWidgetBuilder? errorBuilder,
     Duration? enterTimeout,
     GoRouterRedirect? redirect,
@@ -246,6 +259,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
           initTransitionDuration: initTransitionDuration,
           guards: guards,
           parentLocation: parentLocation,
+          breadcrumb: breadcrumb,
           errorBuilder: errorBuilder,
           enterTimeout: enterTimeout,
           redirect: redirect,
@@ -269,6 +283,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
     this.initTransitionDuration,
     required this.guards,
     this.parentLocation,
+    this.breadcrumb,
     this.errorBuilder,
     this.enterTimeout,
     GoRouterRedirect? redirect,

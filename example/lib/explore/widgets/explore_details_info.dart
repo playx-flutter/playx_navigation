@@ -17,6 +17,8 @@ class ExploreDetailsInfo extends PlayxView<ExploreDetailsController> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Runtime breadcrumb label: Explore > Featured #101.
+            PlayxBreadcrumbLabel(label: product.name),
             Text(product.name,
                 style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),

@@ -243,7 +243,14 @@ class PlayxRouter {
   /// set explicitly.
   String? get parentLocation {
     final state = stateOrNull;
-    if (state == null) return null;
+    return state == null ? null : parentOf(state);
+  }
+
+  /// The parent location of the page described by [state], or `null`.
+  ///
+  /// The route's [PlayxRoute.parentLocation] if it returns a value, otherwise
+  /// the nearest shorter path that matches a route. Never `/`.
+  String? parentOf(GoRouterState state) {
     final top = state.topRoute;
     if (top is PlayxRoute) {
       final explicit = top.parentLocation?.call(state);
@@ -261,6 +268,81 @@ class PlayxRouter {
       }
     }
     return null;
+  }
+
+  /// Builds the [GoRouterState] of the page [location] would show, without
+  /// navigating (redirects are not run). Returns `null` if no route matches.
+  GoRouterState? stateFor(String location) {
+    final matches = router.configuration.findMatch(Uri.parse(location));
+    if (matches.isError || matches.matches.isEmpty) return null;
+    return _buildState(matches, matches.last);
+  }
+
+  /// Whether [location] is the root page of a shell branch (the first page
+  /// inside its innermost shell route).
+  bool isShellBranchRoot(String location) {
+    final matchList = router.configuration.findMatch(Uri.parse(location));
+    if (matchList.isError || matchList.matches.isEmpty) return false;
+    var matches = matchList.matches;
+    var inShell = false;
+    while (true) {
+      final last = matches.last;
+      if (last is ShellRouteMatch) {
+        matches = last.matches;
+        inShell = true;
+        continue;
+      }
+      return inShell && matches.length == 1;
+    }
+  }
+
+  /// The states of the pages in the current page stack, bottom to top
+  /// (the current shell branch plus pages pushed above it).
+  List<GoRouterState> get pageStack {
+    final configuration = router.routerDelegate.currentConfiguration;
+    final states = <GoRouterState>[];
+    void visit(List<RouteMatchBase> matches) {
+      for (final match in matches) {
+        if (match is ShellRouteMatch) {
+          visit(match.matches);
+        } else if (match is ImperativeRouteMatch) {
+          states.add(_buildState(match.matches, match));
+        } else if (match is RouteMatch) {
+          states.add(_buildState(configuration, match));
+        }
+      }
+    }
+
+    visit(configuration.matches);
+    return states;
+  }
+
+  /// Pops until the page with [pageKey] is on top.
+  ///
+  /// Returns `false` (and does nothing) if that page is not in [pageStack].
+  bool popToPage(LocalKey pageKey) {
+    final stack = pageStack;
+    if (!stack.any((state) => state.pageKey == pageKey)) return false;
+    for (var i = 0; i < stack.length; i++) {
+      if (stateOrNull?.pageKey == pageKey || !canPop()) break;
+      router.pop();
+    }
+    return stateOrNull?.pageKey == pageKey;
+  }
+
+  GoRouterState _buildState(RouteMatchList list, RouteMatch match) {
+    return GoRouterState(
+      router.configuration,
+      uri: list.uri,
+      matchedLocation: match.matchedLocation,
+      name: match.route.name,
+      path: match.route.path,
+      fullPath: list.fullPath,
+      pathParameters: list.pathParameters,
+      extra: list.extra,
+      pageKey: match.pageKey,
+      topRoute: match.route,
+    );
   }
 
   /// Whether [back] can do something: pop, or go to a [parentLocation].

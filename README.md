@@ -799,6 +799,97 @@ AppBar(
 | `PlayxNavigation.parentLocation` | The location `back()` goes to when there is nothing to pop. |
 | `PlayxNavigation.popOrGo(location)` | Pop, or go to a specific fallback location. |
 
+## Breadcrumbs
+
+Breadcrumbs are derived from navigation. Give routes a label, place a `PlayxBreadcrumbs` widget, and every page gets a correct, tappable trail, also after a web refresh or deep link.
+
+```dart
+PlayxShellBranch(
+  path: '/jobs',
+  breadcrumb: (context, state) => context.l10n.jobs,     // localized labels work
+  builder: (context, state) => const JobsView(),
+  routes: [
+    PlayxRoute(
+      path: ':id',
+      breadcrumb: (context, state) => 'Job #${state.pathParameters['id']}',
+      builder: (context, state) => const JobDetailsView(),
+      routes: [
+        PlayxRoute(
+          path: 'edit',
+          breadcrumb: (context, state) => context.l10n.edit,
+          builder: (context, state) => const EditJobView(),
+        ),
+      ],
+    ),
+  ],
+)
+
+// In the shell layout or any page (rebuilds on every navigation):
+const PlayxBreadcrumbs(mode: PlayxBreadcrumbMode.shellBranch)   // Jobs > Job #5 > Edit
+```
+
+### Modes
+
+| Mode | Trail | Tapping a crumb |
+|---|---|---|
+| `hierarchy` (default) | The current page and its parents, using the same parent rule as `back()`: `parentLocation`, otherwise the nearest shorter matching path. `rootLocation: '/home'` prepends a root: `Home > Jobs > Job #5 > Edit`. | Goes to it. |
+| `shellBranch` | Like `hierarchy`, but starting at the current shell branch's root: `Jobs > Job #5 > Edit`. Outside a shell it is the same as `hierarchy`. | Goes to it. |
+| `history` | The pages actually in the stack, bottom to top. Depends on how the user navigated, and resets on refresh. | Pops back to it. |
+
+- Pages without a label are left out of the trail, but the trail still continues to their parents.
+- The last item is the current page, and it isn't tappable.
+
+### Labels
+
+A crumb's label comes from the first of these that provides one:
+1. **A runtime label** set by a live page. Use it for loaded data:
+   ```dart
+   Obx(() => PlayxBreadcrumbLabel(label: controller.job.value?.title))
+   // or from a binding callback / any widget in the page:
+   PlayxNavigation.setBreadcrumbLabel(context, job.title);
+   ```
+   The label stays while the page is in the stack, so a child page shows `Jobs > Plumbing repair > Edit`. It is removed when the page goes away.
+2. **The route's** `breadcrumb: (context, state) => ...`.
+3. **The binding's** `breadcrumb` override, which keeps route definitions short:
+   ```dart
+   class JobDetailsBinding extends PlayxBinding {
+     @override
+     String? breadcrumb(BuildContext context, GoRouterState state) =>
+         'Job #${state.pathParameters['id']}';
+   }
+   ```
+
+`context` is the context of the widget showing the breadcrumbs, so `context.l10n` works even in a shell header.
+
+### Customizing the widget
+
+```dart
+PlayxBreadcrumbs(
+  mode: PlayxBreadcrumbMode.hierarchy,
+  rootLocation: '/home',
+  maxItems: 4,                 // Home > … > last 3; "…" opens a menu with the hidden items
+  hideIfSingle: true,
+  separator: const Icon(Icons.chevron_right, size: 16),
+  itemBuilder: (context, item) => CustomText(
+    item.label,
+    color: item.isCurrent ? context.colors.onSurface : context.colors.subtitleTextColor,
+  ),
+)
+```
+
+To keep your own breadcrumb widget, feed it with `PlayxBreadcrumbsBuilder`:
+
+```dart
+PlayxBreadcrumbsBuilder(
+  mode: PlayxBreadcrumbMode.shellBranch,
+  builder: (context, items) => BreadcrumbHeader(
+    items: [for (final item in items) BreadcrumbItem(title: item.label, onTap: item.navigate)],
+  ),
+)
+```
+
+Each `PlayxBreadcrumbItem` has `label`, `location`, `state` (path parameters...), `isCurrent`, and `navigate()`. For one-off reads use `PlayxNavigation.breadcrumbs(context, mode: ...)`, and listen to `PlayxNavigation.breadcrumbsListenable` to rebuild.
+
 ## Route Guards
 
 Attach `PlayxGuard`s to a route to redirect before it is entered. Guards run in order, before the route's own `redirect`; the first non-null location wins. They also apply to sub-routes.

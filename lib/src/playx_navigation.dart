@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart' as flutter_web_plugins;
 import 'package:go_router/go_router.dart';
 
+import 'breadcrumbs/playx_breadcrumb.dart';
+import 'breadcrumbs/playx_breadcrumb_labels.dart';
 import 'router/playx_router.dart';
 import 'routes/playx_route.dart';
 import 'binding/playx_binding.dart';
@@ -182,6 +184,40 @@ abstract class PlayxNavigation {
 
   /// Returns the [GoRouter] instance used for navigation.
   static GoRouter get goRouter => _router.router;
+
+  /// Returns the [PlayxRouter] used for navigation.
+  static PlayxRouter get playxRouter => _router;
+
+  /// The breadcrumb trail of the current page.
+  ///
+  /// Labels come from runtime labels of live pages (`PlayxBreadcrumbLabel`,
+  /// [setBreadcrumbLabel]), then the route's `breadcrumb`, then its binding's
+  /// `breadcrumb`; pages without a label are skipped. See
+  /// [PlayxBreadcrumbMode] for [mode]; [rootLocation] (e.g. `/home`) is
+  /// prepended in [PlayxBreadcrumbMode.hierarchy].
+  ///
+  /// To rebuild a widget when it changes, listen to [breadcrumbsListenable]
+  /// or use `PlayxBreadcrumbsBuilder`.
+  static List<PlayxBreadcrumbItem> breadcrumbs(
+    BuildContext context, {
+    PlayxBreadcrumbMode mode = PlayxBreadcrumbMode.hierarchy,
+    String? rootLocation,
+  }) =>
+      resolveBreadcrumbs(context, mode: mode, rootLocation: rootLocation);
+
+  /// Sets the breadcrumb label of the page [context] belongs to (a binding
+  /// callback context, or any widget inside the page). `null` clears it.
+  ///
+  /// Removed automatically when the page's scope is disposed. For pages
+  /// without a binding or controller, prefer the `PlayxBreadcrumbLabel`
+  /// widget, which removes it when unmounted.
+  static void setBreadcrumbLabel(BuildContext context, String? label) =>
+      PlayxBreadcrumbLabels.instance.setFor(context, label);
+
+  /// Notifies when the breadcrumb trail may have changed (navigation or a
+  /// runtime label change).
+  static Listenable get breadcrumbsListenable => PlayxBreadcrumbLabels.instance
+    ..attachRouter(_router.router.routerDelegate);
 
   /// Gets the current [GoRouterState] object representing the current state of the
   /// navigation stack.
