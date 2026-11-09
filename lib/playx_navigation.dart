@@ -25,4 +25,5 @@ export 'src/router/playx_router.dart';
 export 'src/routes/playx_page.dart' show PlayxScope, PlayxScopeProvider;
 export 'src/routes/playx_route.dart';
 export 'src/routes/playx_shell_branch.dart';
+export 'src/widgets/playx_back_button.dart';
 export 'src/widgets/playx_navigation_builder.dart';

@@ -21,6 +21,7 @@
 - **`PlayxBinding.redirect`**: validate navigation before the page is built (e.g. a missing or invalid id). Runs only when the binding's own route is the destination.
 - **`PlayxBinding.onExit` is now optional** (no-op by default), for bindings that register cleanup with `PlayxScope.onDispose` / `PlayxScope.put` in `onEnter`. Existing overrides are unaffected.
 - **`PlayxBinding.activeScopes`**: the pages currently using a binding, for cleaning up shared resources only when the last page leaves.
+- **`PlayxNavigation.back()`**: pop, or go to the current page's parent when there is nothing to pop (web refresh, typed URLs, deep links). The parent is the route's new **`parentLocation`**, or the nearest shorter path that matches a route. Also adds `PlayxNavigation.canGoBack`, `PlayxNavigation.parentLocation` and a **`PlayxBackButton`** widget for app bars.
 - **`PlayxNavigation.popOrGo` / `popOrGoNamed`**: pop, or go to a fallback when there is nothing to pop (web refresh, deep links).
 - **`GoRouterState` helpers**: `extraAs<T>()`, `intPathParam(name)`, `intQueryParam(name)`, which return `null` instead of throwing.
 

@@ -428,6 +428,30 @@ abstract class PlayxNavigation {
     );
   }
 
+  /// Pops the top-most route if possible, otherwise goes to the current
+  /// page's parent.
+  ///
+  /// Made for web: after a refresh, a typed URL or a deep link there may be
+  /// nothing to pop, but the user still expects "back" to go up, e.g. from a
+  /// job's details to the jobs list.
+  ///
+  /// The parent is the route's [PlayxRoute.parentLocation] if set, otherwise
+  /// the nearest shorter path that matches a route (`/jobs/5` → `/jobs`).
+  /// Returns `false` if there was nothing to pop and no parent.
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.back();
+  /// ```
+  static bool back<T extends Object?>([T? result]) => _router.back<T>(result);
+
+  /// Whether [back] can do something: pop, or go to a parent.
+  static bool get canGoBack => _router.canGoBack;
+
+  /// The location [back] goes to when there is nothing to pop, or `null`.
+  /// See [back].
+  static String? get parentLocation => _router.parentLocation;
+
   /// Returns `true` if there are two or more routes in the navigation stack that can be popped.
   ///
   /// Example usage:

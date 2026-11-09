@@ -99,6 +99,10 @@ import '../models/playx_page_transition.dart';
 /// **Route Lifecycle:**
 /// The binding lifecycle is managed through the [PlayxPage] widget lifecycle
 /// and the [PlayxNavigationBuilder] route-change listener — no longer through redirect callbacks.
+/// Computes the parent location of a page for `PlayxNavigation.back()`.
+/// Return `null` to use the automatic parent.
+typedef PlayxParentLocation = String? Function(GoRouterState state);
+
 class PlayxRoute<T extends Object> extends GoRoute {
   /// An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
   ///
@@ -170,6 +174,19 @@ class PlayxRoute<T extends Object> extends GoRoute {
   /// Guards run before [redirect].
   final List<PlayxGuard> guards;
 
+  /// Where `PlayxNavigation.back()` goes when there is nothing to pop, e.g.
+  /// on web after a refresh, a typed URL or a deep link to this page.
+  ///
+  /// Return `null` to fall back to the automatic parent: the nearest shorter
+  /// path that matches a route (`/jobs/5` → `/jobs`). Set this when the
+  /// parent can't be derived from the path, e.g. a top-level `/job/:id` whose
+  /// parent is `/jobs`:
+  ///
+  /// ```dart
+  /// parentLocation: (state) => Paths.jobs,
+  /// ```
+  final PlayxParentLocation? parentLocation;
+
   /// Builder for the widget shown when the [binding]'s `onEnter` throws or
   /// exceeds [enterTimeout]. Receives a `retry` callback.
   ///
@@ -205,6 +222,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
     bool? waitForBinding,
     Duration? initTransitionDuration,
     List<PlayxGuard> guards = const <PlayxGuard>[],
+    PlayxParentLocation? parentLocation,
     PlayxErrorWidgetBuilder? errorBuilder,
     Duration? enterTimeout,
     GoRouterRedirect? redirect,
@@ -227,6 +245,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
           waitForBinding: waitForBinding,
           initTransitionDuration: initTransitionDuration,
           guards: guards,
+          parentLocation: parentLocation,
           errorBuilder: errorBuilder,
           enterTimeout: enterTimeout,
           redirect: redirect,
@@ -249,6 +268,7 @@ class PlayxRoute<T extends Object> extends GoRoute {
     this.waitForBinding,
     this.initTransitionDuration,
     required this.guards,
+    this.parentLocation,
     this.errorBuilder,
     this.enterTimeout,
     GoRouterRedirect? redirect,

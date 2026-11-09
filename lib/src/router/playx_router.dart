@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../routes/playx_route.dart';
+
 /// A class that simplifies navigation using the [GoRouter] by providing
 /// convenient methods for route management and navigation.
 class PlayxRouter {
@@ -230,6 +232,53 @@ class PlayxRouter {
         extra: extra,
       );
     }
+  }
+
+  /// The location [back] goes to when there is nothing to pop, or `null`.
+  ///
+  /// Uses the current route's [PlayxRoute.parentLocation] if it returns a
+  /// value, otherwise the nearest shorter path that matches a route
+  /// (`/jobs/5/edit` → `/jobs/5` → `/jobs`). The automatic parent never falls
+  /// back to `/`, so tab roots such as `/jobs` have no parent unless one is
+  /// set explicitly.
+  String? get parentLocation {
+    final state = stateOrNull;
+    if (state == null) return null;
+    final top = state.topRoute;
+    if (top is PlayxRoute) {
+      final explicit = top.parentLocation?.call(state);
+      if (explicit != null) return explicit;
+    }
+    final segments = Uri.parse(state.matchedLocation)
+        .pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+    while (segments.length > 1) {
+      segments.removeLast();
+      final candidate = '/${segments.join('/')}';
+      if (!router.configuration.findMatch(Uri.parse(candidate)).isError) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// Whether [back] can do something: pop, or go to a [parentLocation].
+  bool get canGoBack => canPop() || parentLocation != null;
+
+  /// Pops the top-most route if possible, otherwise goes to the current
+  /// page's [parentLocation].
+  ///
+  /// Returns `false` if there was nothing to pop and no parent.
+  bool back<T extends Object?>([T? result]) {
+    if (canPop()) {
+      router.pop(result);
+      return true;
+    }
+    final parent = parentLocation;
+    if (parent == null) return false;
+    router.go(parent);
+    return true;
   }
 
   /// Returns `true` if there is at least two or more route can be pop.

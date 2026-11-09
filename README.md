@@ -749,10 +749,55 @@ Tagging with `scope.id` keeps stacked pages of the same type apart. Without a ta
 ## Web
 
 - **`extra` is not part of the URL.** After a refresh, a typed or shared URL, or a deep link, `state.extra` is `null`. Treat it as an optional shortcut and load data by id: `state.extraAs<Job>()` returns `null` instead of throwing, and `state.intPathParam('id')` / `state.intQueryParam('page')` parse safely. To keep `extra` across browser back/forward, give `GoRouter` an `extraCodec`.
-- **Back buttons.** After a refresh or deep link there may be nothing to pop. Use `PlayxNavigation.popOrGo('/jobs')` (or `popOrGoNamed`) to pop when possible and otherwise go to a fallback.
+- **Back to the parent.** After a refresh, a typed URL or a deep link there may be nothing to pop, for example on a job's details page opened from a link. `PlayxNavigation.back()` pops when possible, and otherwise goes to the page's parent (see [Back Navigation on Web](#back-navigation-on-web)).
 - **Browser back/forward** work like pop and push: the page that was left gets `onExit`, the revealed page `onReEnter`, and going forward creates a new page with `onEnter`.
 - **Refresh** restarts the app: `onInitApp` runs again, and the pages of the URL behave like a deep link (only the visible page enters; pages behind it are pending).
 - Call `PlayxNavigation.setupWeb()` before `runApp` for path URLs and URLs that reflect `push`.
+
+### Back Navigation on Web
+
+`PlayxNavigation.back()` pops when there is something to pop, and otherwise goes to the current page's **parent**. So "back" from a job's details returns to the jobs list even when the details page was opened directly.
+
+The parent is found in this order:
+1. The route's `parentLocation`, if it returns a value.
+2. Otherwise, the nearest shorter path that matches a route: `/jobs/5/edit` → `/jobs/5` → `/jobs`.
+
+The automatic parent never falls back to `/`, so tab roots such as `/jobs` have no parent unless you set one.
+
+```dart
+// Nested or path-shaped routes need nothing extra:
+PlayxRoute(path: '/jobs', builder: ..., routes: [
+  PlayxRoute(path: ':id', builder: ...),          // /jobs/5 → back → /jobs
+]),
+
+// When the path doesn't contain the parent, say where to go:
+PlayxRoute(
+  path: '/job/:id',
+  parentLocation: (state) => Paths.jobs,
+  builder: ...,
+),
+PlayxRoute(
+  path: '/edit-job/:id',
+  parentLocation: (state) => '/jobs/${state.pathParameters['id']}',
+  builder: ...,
+),
+```
+
+Flutter's automatic `AppBar` back button only appears when there is something to pop. Use `PlayxBackButton` instead:
+
+```dart
+AppBar(
+  leading: PlayxNavigation.canGoBack ? const PlayxBackButton() : null,
+  title: const Text('Job details'),
+)
+```
+
+| API | Purpose |
+|---|---|
+| `PlayxNavigation.back()` | Pop, or go to the parent. Returns `false` if neither is possible. |
+| `PlayxNavigation.canGoBack` | Whether `back()` can do something (useful to show a back button). |
+| `PlayxNavigation.parentLocation` | The location `back()` goes to when there is nothing to pop. |
+| `PlayxNavigation.popOrGo(location)` | Pop, or go to a specific fallback location. |
 
 ## Route Guards
 
