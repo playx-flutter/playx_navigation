@@ -152,6 +152,30 @@ void main() {
       expect(find.text('timeout: true'), findsOneWidget);
     });
 
+    testWidgets('global enterTimeout applies when the route sets none',
+        (tester) async {
+      final binding = _Binding()..enterCompleter = Completer<void>();
+      final router = GoRouter(routes: [
+        PlayxRoute(
+          path: '/',
+          binding: binding,
+          builder: (_, __) => _page('home'),
+        ),
+      ]);
+
+      await tester.pumpWidget(_app(
+        router,
+        config: PlayxPageConfig(
+          enterTimeout: const Duration(seconds: 1),
+          errorBuilder: (_, __, error, ___, ____) =>
+              Text('timeout: ${error is TimeoutException}'),
+        ),
+      ));
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+      expect(find.text('timeout: true'), findsOneWidget);
+    });
+
     testWidgets('without errorBuilder the error is reported, not unhandled',
         (tester) async {
       final binding = _Binding()..enterError = StateError('boom');

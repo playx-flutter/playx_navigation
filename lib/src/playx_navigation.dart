@@ -185,7 +185,10 @@ abstract class PlayxNavigation {
 
   /// Gets the current [GoRouterState] object representing the current state of the
   /// navigation stack.
-  static GoRouterState? get currentState => _router.state;
+  ///
+  /// Returns `null` when there is no matched route, e.g. while go_router shows
+  /// its error page for an unknown location.
+  static GoRouterState? get currentState => _router.stateOrNull;
 
   /// Gets the current [RouteMatch] object representing the current route in the
   /// navigation stack.

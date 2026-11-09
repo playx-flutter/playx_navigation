@@ -22,14 +22,24 @@ class PlayxRouter {
   /// navigation stack.
   GoRouterState get state => router.state;
 
+  /// Like [state], but returns `null` instead of throwing when there is no
+  /// matched route (e.g. while go_router shows its error page for an unknown
+  /// location).
+  GoRouterState? get stateOrNull {
+    if (router.routerDelegate.currentConfiguration.matches.isEmpty) {
+      return null;
+    }
+    return router.state;
+  }
+
   /// Gets the current [GoRoute] object representing the current route in the
-  /// navigation stack.
-  GoRoute? get currentRoute => state.topRoute;
+  /// navigation stack, or `null` when there is no matched route.
+  GoRoute? get currentRoute => stateOrNull?.topRoute;
 
   /// Gets the name of the current route, if available.
   ///
   /// Returns `null` if there is no current route or if the route has no name.
-  String? get currentRouteName => state.name;
+  String? get currentRouteName => stateOrNull?.name;
 
   /// Adds a listener for route changes.
   ///

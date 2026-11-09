@@ -311,24 +311,38 @@ onInitApp()  →  onEnter()  →  onHidden() ⇌ onReEnter()  →  onExit()
   once at boot   widget mount   route changes            widget dispose
 ```
 
-### Shell Route Behavior
+### Lifecycle Guarantees
 
-```
-Branch A (Home) ↔ Branch B (Products)
+Each page instance in the navigation stack has its own lifecycle:
 
-1. Enter Home         → home.onEnter
-2. Switch to Products → home.onHidden, products.onEnter
-3. Switch back        → products.onHidden, home.onReEnter(wasPoppedAndReentered: false)
-```
+- **Per page, not per route.** `details/1` and `details/2` pushed on top of each other are two independent pages: the first gets `onHidden` when the second is pushed, and `onReEnter` when it is popped. The same applies when one binding instance is shared by several routes.
+- **Callbacks never overlap.** For one page they run strictly in order. If you navigate away while `onEnter` is still running, `onHidden` / `onExit` wait for it to finish, so cleanup always runs after setup.
+- **Leaving before entering.** On a single navigation, every `onHidden` starts before any `onEnter` / `onReEnter`.
+- **`onExit` runs after the exit animation.** When a page is popped, the revealed page gets `onReEnter` immediately, and the popped page gets `onHidden` right away and `onExit` once it is removed from the tree.
+- **`onEnter` waits for `onInitApp`.** No page runs `onEnter` before every binding's `onInitApp` has completed.
+- **Replace / changed path parameters.** `replace` (`offAndTo`) or `go` from `/item/1` to `/item/2` ends the old visit and starts a new one on the same page: `onExit` completes before the new `onEnter` starts, and `onEnter` receives the new parameters. Query parameter changes alone don't restart the lifecycle.
+- **Deep links and preloaded branches.** A page mounted behind the top page (the parent of a deep-linked child, or a `preload: true` shell branch) is *pending* (`PlayxPageState.pending`): it gets `onEnter`, not `onReEnter`, when it is first shown.
+- **`wasPoppedAndReentered`** is `true` when the pages above this one were removed (pop, `go` to a parent, resetting a branch), and `false` when it comes back through a branch switch.
+- **Failed `onEnter`.** If `onEnter` throws or times out, no `onHidden` / `onReEnter` / `onExit` is called for that page, since it never entered.
+- **Only router navigation counts.** Dialogs, bottom sheets and routes pushed with `Navigator.push` (outside go_router) don't hide the page underneath.
 
-```
-Parent → Child (push/pop)
+> **Sharing a binding between pages that are alive at the same time** (the same route stacked twice, or one binding instance used by several routes): every page still gets its own `onEnter` / `onExit`, so `onExit` of one page can run while another page of the same binding is active. When the pages are different routes (for example `push` then `go` to the same details route), the new page's `onEnter` can also run before the old page's `onExit`. Don't blindly delete shared resources in `onExit` in that setup.
 
-1. Enter List         → list.onEnter
-2. Push Details       → list.onHidden, details.onEnter
-3. Pop Details        → details.onExit, list.onReEnter(wasPoppedAndReentered: true)
-4. Navigate away      → list.onExit
-```
+### Navigation Scenarios
+
+Shell with `products → details` and `favorites → details` branches, plus a top-level `/details/:id` route:
+
+| Navigation | Events |
+|---|---|
+| Products → push details | `products.onHidden`, `details.onEnter` |
+| Pop details | `details.onHidden`, `products.onReEnter(popped: true)`, `details.onExit` |
+| Favorites details → products tab | `favDetails.onHidden`, `products.onReEnter(popped: false)` |
+| Back to favorites tab | `products.onHidden`, `favDetails.onReEnter(popped: false)` |
+| Push top-level `/details/1` from any tab or page, then pop | `origin.onHidden`, `details.onEnter`, then `details.onHidden`, `origin.onReEnter(popped: true)`, `details.onExit` |
+| `go('/products/details/7')` from favorites details | `favDetails.onHidden`, `details.onEnter` (favorites details stays alive in its branch) |
+| Deep link to `/products/details/1`, then pop | `details.onEnter`, then `products.onEnter` (not re-enter) |
+| `goBranch(i, initialLocation: true)` with details open | `details.onHidden`, `products.onReEnter(popped: true)`, `details.onExit` |
+| `go('/login')` (outside the shell) | `onExit` once for every page that was entered, in every branch |
 
 **Example:**
 

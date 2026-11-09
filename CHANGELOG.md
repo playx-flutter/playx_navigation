@@ -14,7 +14,16 @@
 - **`onEnter` error handling**: Added `errorBuilder` and `enterTimeout` to `PlayxRoute`, `PlayxShellBranch` and `PlayxPageConfig` (route values override global ones). If `onEnter` throws or times out, `errorBuilder` receives the error and a `retry` callback. Without an `errorBuilder`, the error is reported via `FlutterError.reportError` instead of being an unhandled async error, and the loading state is kept.
 
 ### Fixes
-- `onHidden` / `onReEnter` are now fired for the initial route; previously the first navigation away from the starting route was not treated as a transition.
+- **Binding lifecycle rewritten per page instance.** Each `PlayxPage` now owns its lifecycle instead of `PlayxNavigationBuilder` comparing top routes. This fixes:
+  - `onHidden` / `onReEnter` not firing for the initial route.
+  - `router.replace(...)` reusing the old page state, so the new binding never ran `onEnter` and the old one never ran `onExit`.
+  - Changed path parameters (`/item/1` -> `/item/2`) not re-running `onEnter` with the new parameters. Replace and parameter changes now end the old visit (`onExit`) before starting the new one (`onEnter`).
+  - The same route stacked twice (`details/1` over `details/2`), or one binding shared by several routes, mixing up lifecycle state (spurious `onReEnter`, missing `onHidden`).
+  - `onExit` being skipped when leaving a page while its `onEnter` was still running.
+  - `onEnter` possibly starting before `onInitApp` finished.
+- Lifecycle callbacks of a page now run strictly in order, and on one navigation every `onHidden` starts before any `onEnter` / `onReEnter`.
+- `wasPoppedAndReentered` is now based on the router's page stack instead of a path-prefix check. It is now correct when popping a top-level route back into a shell tab, and when popping `details/2` back to `details/1`.
+- `PlayxNavigation.currentState`, `currentRoute` and `currentRouteName` return `null` instead of throwing while go_router shows its error page for an unknown location. Previously this also crashed every page listening to route changes. Added `PlayxRouter.stateOrNull`.
 - `PlayxPageState` is now exported.
 
 ### Other

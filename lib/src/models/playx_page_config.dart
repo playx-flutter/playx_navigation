@@ -159,6 +159,14 @@ class PlayxPageConfigProvider extends InheritedWidget {
         ?.config;
   }
 
+  /// Like [of], but doesn't register a dependency, so it is safe to call from
+  /// `initState` and from async callbacks.
+  static PlayxPageConfig? read(BuildContext context) {
+    return context
+        .getInheritedWidgetOfExactType<PlayxPageConfigProvider>()
+        ?.config;
+  }
+
   @override
   bool updateShouldNotify(PlayxPageConfigProvider oldWidget) {
     return config != oldWidget.config;
