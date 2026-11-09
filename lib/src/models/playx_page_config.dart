@@ -57,20 +57,20 @@ typedef PlayxErrorWidgetBuilder = Widget Function(
   VoidCallback retry,
 );
 
-/// Registers or unregisters a route controller of type [T] in an external
+/// Registers or unregisters a route controller of type `T` in an external
 /// registry (e.g. GetX). See [PlayxPageConfig.registerController].
 typedef PlayxControllerRegistrar = void Function<T extends Object>(
   T controller,
   PlayxScope scope,
 );
 
-/// Finds a page's controller of type [T] in an external registry (e.g. GetX),
+/// Finds a page's controller of type `T` in an external registry (e.g. GetX),
 /// or returns `null`. See [PlayxPageConfig.findController].
 typedef PlayxControllerFinder = T? Function<T extends Object>(
   PlayxScope scope,
 );
 
-/// Global configuration for [PlayxPage] behavior.
+/// Global configuration for `PlayxPage` behavior.
 ///
 /// Provide this to [PlayxNavigationBuilder] to set defaults for all routes.
 /// Individual route settings (on [PlayxRoute]) override these globals.
@@ -141,7 +141,7 @@ class PlayxPageConfig {
   /// Individual routes can override this via [PlayxRoute.enterTimeout].
   final Duration? enterTimeout;
 
-  /// Called with the route's controller type [T] right after a
+  /// Called with the route's controller type `T` right after a
   /// `PlayxRoute<T>(controller: ...)` controller is created, to register it in
   /// an external registry so `Get.find<T>()`, `GetBuilder<T>`, etc. keep
   /// working.
@@ -156,7 +156,7 @@ class PlayxPageConfig {
   /// same type share one registration.
   final PlayxControllerRegistrar? registerController;
 
-  /// Called with the route's controller type [T] right before a route
+  /// Called with the route's controller type `T` right before a route
   /// controller is disposed. Mirror of [registerController].
   ///
   /// ```dart
@@ -166,7 +166,7 @@ class PlayxPageConfig {
   final PlayxControllerRegistrar? unregisterController;
 
   /// Used by `PlayxView<T>` and `context.controller<T>()` when the page's
-  /// scope has no [T], e.g. when a binding registers controllers in GetX:
+  /// scope has no `T`, e.g. when a binding registers controllers in GetX:
   ///
   /// ```dart
   /// findController: <T extends Object>(PlayxScope scope) =>
@@ -191,7 +191,7 @@ class PlayxPageConfig {
 /// An [InheritedWidget] that provides [PlayxPageConfig] to descendant widgets.
 ///
 /// This is used internally by [PlayxNavigationBuilder] to propagate global
-/// configuration down to [PlayxPage] instances.
+/// configuration down to `PlayxPage` instances.
 class PlayxPageConfigProvider extends InheritedWidget {
   /// The global page configuration.
   final PlayxPageConfig config;

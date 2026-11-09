@@ -10,6 +10,10 @@ import '../models/playx_page_config.dart';
 import '../models/playx_page_configuration.dart';
 import '../models/playx_page_transition.dart';
 
+/// Computes the parent location of a page for `PlayxNavigation.back()`.
+/// Return `null` to use the automatic parent.
+typedef PlayxParentLocation = String? Function(GoRouterState state);
+
 /// A custom route class extending [GoRoute] that provides additional features
 /// such as custom page transitions, route bindings, and page configuration settings.
 ///
@@ -98,12 +102,8 @@ import '../models/playx_page_transition.dart';
 /// If a [redirect] callback is provided, it will handle redirection logic independently of binding lifecycle.
 ///
 /// **Route Lifecycle:**
-/// The binding lifecycle is managed through the [PlayxPage] widget lifecycle
+/// The binding lifecycle is managed through the `PlayxPage` widget lifecycle
 /// and the [PlayxNavigationBuilder] route-change listener — no longer through redirect callbacks.
-/// Computes the parent location of a page for `PlayxNavigation.back()`.
-/// Return `null` to use the automatic parent.
-typedef PlayxParentLocation = String? Function(GoRouterState state);
-
 class PlayxRoute<T extends Object> extends GoRoute {
   /// An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
   ///

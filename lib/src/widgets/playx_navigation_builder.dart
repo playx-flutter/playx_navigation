@@ -19,7 +19,7 @@ import 'package:playx_navigation/src/playx_navigation.dart';
 ///
 /// **Lifecycle responsibilities:**
 /// Each route's [PlayxBinding] lifecycle (`onEnter`, `onHidden`, `onReEnter`,
-/// `onExit`) is managed per page instance by [PlayxPage], which waits for
+/// `onExit`) is managed per page instance by `PlayxPage`, which waits for
 /// boot to finish before calling `onEnter`.
 ///
 /// This widget is typically placed high in the widget tree to wrap the entire
@@ -56,9 +56,9 @@ class PlayxNavigationBuilder extends StatefulWidget {
   /// called elsewhere in your code.
   final GoRouter? router;
 
-  /// Optional global configuration for all [PlayxPage] instances.
+  /// Optional global configuration for all `PlayxPage` instances.
   ///
-  /// Sets defaults for [loadingWidget], [waitForBinding], and [shellBuilder]
+  /// Sets defaults for `loadingWidget`, `waitForBinding`, and `shellBuilder`
   /// that individual routes can override.
   ///
   /// When not provided, routes use built-in defaults:
