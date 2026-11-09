@@ -119,6 +119,44 @@ class TaggedDetailsBinding extends PlayxBinding {
   Future<void> onExit(BuildContext context) async {}
 }
 
+/// The recommended pattern: lifecycle methods + scope id as the tag.
+class LifecycleDetailsBinding extends PlayxBinding {
+  JobDetailsController _find(BuildContext context) =>
+      _get.find<JobDetailsController>(tag: PlayxScope.of(context).id);
+
+  @override
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
+    _get.put(JobDetailsController(state.intPathParam('id')!, null),
+        tag: PlayxScope.of(context).id);
+  }
+
+  @override
+  Future<void> onHidden(BuildContext context) async =>
+      log.add('hidden:${_find(context).jobId}');
+
+  @override
+  Future<void> onReEnter(
+          BuildContext context, GoRouterState? state, bool wasPopped) async =>
+      log.add('reEnter:${_find(context).jobId}');
+
+  @override
+  Future<void> onExit(BuildContext context) async {
+    log.add('exit:${_find(context).jobId}');
+    _get.delete<JobDetailsController>(tag: PlayxScope.of(context).id);
+  }
+}
+
+/// No onExit: cleanup registered in onEnter.
+class NoExitBinding extends PlayxBinding {
+  @override
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
+    final scope = PlayxScope.of(context);
+    _get.put(JobDetailsController(state.intPathParam('id')!, null),
+        tag: scope.id);
+    scope.onDispose(() => _get.delete<JobDetailsController>(tag: scope.id));
+  }
+}
+
 /// The same binding written like the original (untagged global registry).
 class UntaggedDetailsBinding extends PlayxBinding {
   final bool guardWithActiveScopes;
@@ -342,6 +380,35 @@ void main() {
       expect(_get.find<JobDetailsController>(tag: scopes[0].id).jobId, 1);
       expect(
           _get.isRegistered<JobDetailsController>(tag: scopes[1].id), isFalse);
+    });
+
+    testWidgets('lifecycle methods find each page\'s own tagged controller',
+        (tester) async {
+      final router = _jobsRouter(details: LifecycleDetailsBinding());
+      await _pump(tester, router);
+      await _push(tester, router, '/jobs/details/1');
+      await _push(tester, router, '/jobs/details/2');
+      await _pop(tester, router);
+      await _pop(tester, router);
+      expect(log.where((e) => !e.startsWith('jobs')), [
+        'hidden:1',
+        'hidden:2',
+        'reEnter:1',
+        'exit:2',
+        'hidden:1',
+        'exit:1',
+      ]);
+      expect(_get._items, isEmpty);
+    });
+
+    testWidgets('onExit is optional when cleanup is registered in onEnter',
+        (tester) async {
+      final router = _jobsRouter(details: NoExitBinding());
+      await _pump(tester, router);
+      await _push(tester, router, '/jobs/details/1');
+      expect(_get._items.length, 1);
+      await _pop(tester, router);
+      expect(_get._items, isEmpty);
     });
 
     testWidgets('untagged registry: the original binding loses the controller',

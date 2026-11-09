@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../routes/playx_page.dart' show PlayxScope;
+
 /// Builder function for route content that includes initialization state.
 ///
 /// Unlike [GoRouterWidgetBuilder], this builder exposes [isInitialized] so
@@ -53,6 +55,19 @@ typedef PlayxErrorWidgetBuilder = Widget Function(
   Object error,
   StackTrace stackTrace,
   VoidCallback retry,
+);
+
+/// Registers or unregisters a route controller of type [T] in an external
+/// registry (e.g. GetX). See [PlayxPageConfig.registerController].
+typedef PlayxControllerRegistrar = void Function<T extends Object>(
+  T controller,
+  PlayxScope scope,
+);
+
+/// Finds a page's controller of type [T] in an external registry (e.g. GetX),
+/// or returns `null`. See [PlayxPageConfig.findController].
+typedef PlayxControllerFinder = T? Function<T extends Object>(
+  PlayxScope scope,
 );
 
 /// Global configuration for [PlayxPage] behavior.
@@ -126,6 +141,39 @@ class PlayxPageConfig {
   /// Individual routes can override this via [PlayxRoute.enterTimeout].
   final Duration? enterTimeout;
 
+  /// Called with the route's controller type [T] right after a
+  /// `PlayxRoute<T>(controller: ...)` controller is created, to register it in
+  /// an external registry so `Get.find<T>()`, `GetBuilder<T>`, etc. keep
+  /// working.
+  ///
+  /// ```dart
+  /// registerController: <T extends Object>(T controller, PlayxScope scope) =>
+  ///     Get.put<T>(controller, tag: scope.id),
+  /// ```
+  ///
+  /// Tagging with `scope.id` keeps stacked pages of the same type apart;
+  /// without a tag, `Get.find<T>()` works anywhere, but stacked pages of the
+  /// same type share one registration.
+  final PlayxControllerRegistrar? registerController;
+
+  /// Called with the route's controller type [T] right before a route
+  /// controller is disposed. Mirror of [registerController].
+  ///
+  /// ```dart
+  /// unregisterController: <T extends Object>(T controller, PlayxScope scope) =>
+  ///     Get.delete<T>(tag: scope.id),
+  /// ```
+  final PlayxControllerRegistrar? unregisterController;
+
+  /// Used by `PlayxView<T>` and `context.controller<T>()` when the page's
+  /// scope has no [T], e.g. when a binding registers controllers in GetX:
+  ///
+  /// ```dart
+  /// findController: <T extends Object>(PlayxScope scope) =>
+  ///     Get.isRegistered<T>(tag: scope.id) ? Get.find<T>(tag: scope.id) : null,
+  /// ```
+  final PlayxControllerFinder? findController;
+
   /// Creates a [PlayxPageConfig] with the specified defaults.
   const PlayxPageConfig({
     this.loadingWidget,
@@ -134,6 +182,9 @@ class PlayxPageConfig {
     this.initTransitionDuration,
     this.errorBuilder,
     this.enterTimeout,
+    this.registerController,
+    this.unregisterController,
+    this.findController,
   });
 }
 

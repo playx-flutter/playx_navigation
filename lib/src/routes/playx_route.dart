@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
+import '../controller/playx_route_controller.dart';
 import '../guards/playx_guard.dart';
 import '../models/playx_page_config.dart';
 import '../models/playx_page_configuration.dart';
@@ -98,7 +99,7 @@ import '../models/playx_page_transition.dart';
 /// **Route Lifecycle:**
 /// The binding lifecycle is managed through the [PlayxPage] widget lifecycle
 /// and the [PlayxNavigationBuilder] route-change listener — no longer through redirect callbacks.
-class PlayxRoute extends GoRoute {
+class PlayxRoute<T extends Object> extends GoRoute {
   /// An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
   ///
   /// The [binding] allows you to attach custom logic that is executed at different
@@ -181,26 +182,80 @@ class PlayxRoute extends GoRoute {
   /// Overrides the global [PlayxPageConfig.enterTimeout]. `null` means no timeout.
   final Duration? enterTimeout;
 
+  /// Creates a route.
+  ///
+  /// Pass [controller] (and optionally [disposeController]) to give every page
+  /// of this route its own controller of type [T]: created when the page is
+  /// entered, stored in the page's [PlayxScope], and disposed when it exits.
+  /// Read it with `PlayxView<T>` or `context.controller<T>()`. A binding is
+  /// optional when a controller is set.
   PlayxRoute({
+    required String path,
+    String? name,
+    GoRouterWidgetBuilder? builder,
+    PlayxRouteWidgetBuilder? initBuilder,
+    PlayxPageTransition transition = PlayxPageTransition.cupertino,
+    PlayxPageConfiguration pageConfiguration = const PlayxPageConfiguration(),
+    GlobalKey<NavigatorState>? parentNavigatorKey,
+    PlayxBinding? binding,
+    PlayxControllerBuilder<T>? controller,
+    void Function(T controller)? disposeController,
+    Widget? loadingWidget,
+    PlayxShellWidgetBuilder? shellBuilder,
+    bool? waitForBinding,
+    Duration? initTransitionDuration,
+    List<PlayxGuard> guards = const <PlayxGuard>[],
+    PlayxErrorWidgetBuilder? errorBuilder,
+    Duration? enterTimeout,
+    GoRouterRedirect? redirect,
+    ExitCallback? onExit,
+    List<RouteBase> routes = const <RouteBase>[],
+  }) : this._(
+          path: path,
+          name: name,
+          builder: builder,
+          initBuilder: initBuilder,
+          transition: transition,
+          pageConfiguration: pageConfiguration,
+          parentNavigatorKey: parentNavigatorKey,
+          binding: binding,
+          routeController: controller == null
+              ? null
+              : PlayxRouteController<T>(controller, disposeController),
+          loadingWidget: loadingWidget,
+          shellBuilder: shellBuilder,
+          waitForBinding: waitForBinding,
+          initTransitionDuration: initTransitionDuration,
+          guards: guards,
+          errorBuilder: errorBuilder,
+          enterTimeout: enterTimeout,
+          redirect: redirect,
+          onExit: onExit,
+          routes: routes,
+        );
+
+  PlayxRoute._({
     required super.path,
     super.name,
     GoRouterWidgetBuilder? builder,
     PlayxRouteWidgetBuilder? initBuilder,
-    this.transition = PlayxPageTransition.cupertino,
-    this.pageConfiguration = const PlayxPageConfiguration(),
+    required this.transition,
+    required this.pageConfiguration,
     super.parentNavigatorKey,
     this.binding,
+    PlayxRouteController<T>? routeController,
     this.loadingWidget,
     this.shellBuilder,
     this.waitForBinding,
     this.initTransitionDuration,
-    this.guards = const <PlayxGuard>[],
+    required this.guards,
     this.errorBuilder,
     this.enterTimeout,
     GoRouterRedirect? redirect,
     super.onExit,
-    super.routes = const <RouteBase>[],
-  })  : assert(
+    super.routes,
+  })  : hasController = routeController != null,
+        assert(
           builder != null || initBuilder != null,
           'Either builder or initBuilder must be provided.',
         ),
@@ -216,15 +271,16 @@ class PlayxRoute extends GoRoute {
           ),
           pageBuilder: (ctx, state) {
             final Widget pageChild;
+            final pageBinding = binding ?? routeController?.fallbackBinding;
 
-            if (binding == null) {
-              // No binding — always initialized.
+            if (pageBinding == null) {
+              // No binding or controller — always initialized.
               pageChild = initBuilder != null
                   ? initBuilder(ctx, state, true)
                   : builder!(ctx, state);
             } else {
               pageChild = PlayxPage(
-                binding: binding,
+                binding: pageBinding,
                 state: state,
                 childBuilder: builder,
                 initBuilder: initBuilder,
@@ -234,6 +290,7 @@ class PlayxRoute extends GoRoute {
                 initTransitionDuration: initTransitionDuration,
                 errorBuilder: errorBuilder,
                 enterTimeout: enterTimeout,
+                controller: routeController,
               );
             }
 
@@ -244,4 +301,7 @@ class PlayxRoute extends GoRoute {
             );
           },
         );
+
+  /// Whether this route creates a controller of type [T] for its pages.
+  final bool hasController;
 }

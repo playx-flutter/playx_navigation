@@ -24,19 +24,28 @@ part of '../routes/playx_page.dart';
 /// class JobDetailsBinding extends PlayxBinding {
 ///   @override
 ///   Future<void> onEnter(BuildContext context, GoRouterState state) async {
-///     final scope = PlayxScope.of(context);
-///     scope.put(
-///       JobDetailsController(id: int.parse(state.pathParameters['id']!)),
-///       dispose: (controller) => controller.dispose(),
-///     );
+///     Get.put(JobDetailsController(), tag: PlayxScope.of(context).id);
 ///   }
 ///
 ///   @override
-///   Future<void> onExit(BuildContext context) async {}
+///   Future<void> onHidden(BuildContext context) async {
+///     Get.find<JobDetailsController>(tag: PlayxScope.of(context).id).pause();
+///   }
+///
+///   @override
+///   Future<void> onExit(BuildContext context) async {
+///     Get.delete<JobDetailsController>(tag: PlayxScope.of(context).id);
+///   }
 /// }
 ///
 /// // In the page:
-/// final controller = PlayxScope.of(context).get<JobDetailsController>();
+/// final controller =
+///     Get.find<JobDetailsController>(tag: PlayxScope.of(context).id);
+///
+/// // Or, without a global registry, in onEnter:
+/// PlayxScope.of(context).put(JobDetailsController(), dispose: (c) => c.close());
+/// // and anywhere in the page or its callbacks:
+/// PlayxScope.of(context).get<JobDetailsController>();
 /// ```
 class PlayxScope {
   PlayxScope._(this.binding, this.state)
@@ -89,9 +98,13 @@ class PlayxScope {
 
   /// Returns the value stored under type [T].
   ///
+  /// If nothing was stored under exactly [T], returns the first stored value
+  /// that is a [T] (e.g. an `EditJobController` stored under its own type is
+  /// returned for `get<JobFormController>()`).
+  ///
   /// Throws a [StateError] if there is none.
   T get<T extends Object>() {
-    final value = _values[T];
+    final value = maybeGet<T>();
     if (value == null) {
       throw StateError(
         'No $T found in the PlayxScope of ${binding.runtimeType} ($id). '
@@ -99,14 +112,21 @@ class PlayxScope {
         'PlayxScope.of(context).put<$T>(...).',
       );
     }
-    return value as T;
+    return value;
   }
 
-  /// Returns the value stored under type [T], or `null` if there is none.
-  T? maybeGet<T extends Object>() => _values[T] as T?;
+  /// Like [get], but returns `null` if there is no matching value.
+  T? maybeGet<T extends Object>() {
+    final exact = _values[T];
+    if (exact != null) return exact as T;
+    for (final value in _values.values) {
+      if (value is T) return value;
+    }
+    return null;
+  }
 
-  /// Whether a value is stored under type [T].
-  bool has<T extends Object>() => _values.containsKey(T);
+  /// Whether [get] would find a value for [T].
+  bool has<T extends Object>() => maybeGet<T>() != null;
 
   /// Registers [callback] to run after the binding's `onExit` completes.
   ///
@@ -169,7 +189,7 @@ class PlayxScope {
   static PlayxScope? maybeOf(BuildContext context) {
     final page = _pageOfElement[context];
     if (page != null) return page._scopeForCallbacks;
-    return context.getInheritedWidgetOfExactType<_PlayxScopeProvider>()?.scope;
+    return context.getInheritedWidgetOfExactType<PlayxScopeProvider>()?.scope;
   }
 
   /// The scopes of every page currently using [binding] (entered, hidden, or
@@ -187,16 +207,35 @@ final Expando<List<PlayxScope>> _activeScopes =
 
 /// Maps a [PlayxPage] element to its state, so [PlayxScope.of] works with the
 /// context passed to binding callbacks (which is the page's own context, above
-/// the [_PlayxScopeProvider]), even after the element is unmounted.
+/// the [PlayxScopeProvider]), even after the element is unmounted.
 final Expando<_PlayxPageState> _pageOfElement =
     Expando<_PlayxPageState>('PlayxPage');
 
-class _PlayxScopeProvider extends InheritedWidget {
-  const _PlayxScopeProvider({required this.scope, required super.child});
+/// Provides a [PlayxScope] to the widgets below it.
+///
+/// Every page with a binding or controller provides its scope automatically.
+/// Use this to make a page's scope (and its controllers) reachable from
+/// widgets shown above the page, such as dialogs and bottom sheets:
+///
+/// ```dart
+/// final scope = PlayxScope.of(context);
+/// showModalBottomSheet(
+///   context: context,
+///   builder: (_) => PlayxScopeProvider(scope: scope, child: const JobFilterSheet()),
+/// );
+/// ```
+class PlayxScopeProvider extends InheritedWidget {
+  /// Provides [scope] to [child].
+  const PlayxScopeProvider({
+    super.key,
+    required this.scope,
+    required super.child,
+  });
 
+  /// The provided scope.
   final PlayxScope scope;
 
   @override
-  bool updateShouldNotify(_PlayxScopeProvider oldWidget) =>
+  bool updateShouldNotify(PlayxScopeProvider oldWidget) =>
       !identical(scope, oldWidget.scope);
 }

@@ -126,10 +126,20 @@ abstract class PlayxBinding {
   /// sub-routes of the same parent route using [PlayxNavigation.goToBranch] method.
   /// Instead, [onHidden] is called when the route is hidden.
   ///
-  /// - [context]: The [BuildContext] of the route.
+  /// - [context]: The [BuildContext] of the route. `PlayxScope.of(context)`
+  ///   still returns this page's scope here (it is disposed right after
+  ///   `onExit` completes), so scoped controllers can be cleaned up:
   ///
-  /// This method **must** be implemented by subclasses.
-  Future<void> onExit(BuildContext context);
+  /// ```dart
+  /// @override
+  /// Future<void> onExit(BuildContext context) async {
+  ///   Get.delete<JobDetailsController>(tag: PlayxScope.of(context).id);
+  /// }
+  /// ```
+  ///
+  /// Optional: does nothing by default, e.g. when cleanup is registered with
+  /// [PlayxScope.onDispose] or [PlayxScope.put] in [onEnter].
+  Future<void> onExit(BuildContext context) async {}
 
   /// Called when the route is hidden but not removed from the stack.
   ///

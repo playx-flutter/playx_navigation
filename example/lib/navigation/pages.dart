@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 import 'package:playx_navigation_example/explore/explore_binding.dart';
-import 'package:playx_navigation_example/explore/explore_details_binding.dart';
+import 'package:playx_navigation_example/explore/explore_details_controller.dart';
 import 'package:playx_navigation_example/explore/explore_details_page.dart';
 import 'package:playx_navigation_example/explore/explore_page.dart';
 import 'package:playx_navigation_example/home/home_binding.dart';
@@ -99,12 +99,18 @@ class AppPages {
             builder: (context, state) => const ExplorePage(),
             binding: ExploreBinding(),
             routes: [
-              PlayxRoute(
+              // Route controller: no binding. The controller is created per
+              // page, read with PlayxView, and disposed when the page exits.
+              PlayxRoute<ExploreDetailsController>(
                 path: Paths.exploreDetails,
                 name: Routes.exploreDetails,
-                builder: (context, state) =>
-                    ExploreDetailsPage(product: state.extra as Product?),
-                binding: ExploreDetailsBinding(),
+                controller: (context, state) => ExploreDetailsController(
+                  id: state.intPathParam('id') ?? 0,
+                  product: state.extraAs<Product>(),
+                ),
+                disposeController: (controller) => controller.dispose(),
+                waitForBinding: false,
+                builder: (context, state) => const ExploreDetailsPage(),
               ),
             ],
           ),

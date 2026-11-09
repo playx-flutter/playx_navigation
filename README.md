@@ -509,27 +509,43 @@ Get it with `PlayxScope.of(context)`, both in binding callbacks (using the `cont
 | `onDispose(callback)` | Runs after `onExit` completes, e.g. to unregister from a global registry. |
 | `state`, `pageState`, `isActive` | This page's `GoRouterState` and lifecycle state (`binding.currentState` is shared by every page of the binding). |
 
-**Option 1: keep controllers in the scope (no global registry).**
+**Using the lifecycle methods (recommended).** Create the controller in `onEnter`, react to `onHidden` / `onReEnter`, and clean up in `onExit`, using `scope.id` as the tag so every page has its own controller. `PlayxScope.of(context)` returns the same scope in every callback of a page, including `onExit` (the scope is disposed right after it).
 
 ```dart
 class JobDetailsBinding extends PlayxBinding {
   @override
   Future<void> onEnter(BuildContext context, GoRouterState state) async {
-    PlayxScope.of(context).put(
+    Get.put(
       JobDetailsController(id: state.intPathParam('id')!, job: state.extraAs<Job>()),
-      dispose: (controller) => controller.onClose(),
+      tag: PlayxScope.of(context).id,
     );
   }
 
   @override
-  Future<void> onExit(BuildContext context) async {}
+  Future<void> onHidden(BuildContext context) async {
+    Get.find<JobDetailsController>(tag: PlayxScope.of(context).id).pauseUpdates();
+  }
+
+  @override
+  Future<void> onReEnter(
+    BuildContext context,
+    GoRouterState? state,
+    bool wasPoppedAndReentered,
+  ) async {
+    Get.find<JobDetailsController>(tag: PlayxScope.of(context).id).resumeUpdates();
+  }
+
+  @override
+  Future<void> onExit(BuildContext context) async {
+    Get.delete<JobDetailsController>(tag: PlayxScope.of(context).id);
+  }
 }
 
 // In the page:
-final controller = PlayxScope.of(context).get<JobDetailsController>();
+final controller = Get.find<JobDetailsController>(tag: PlayxScope.of(context).id);
 ```
 
-**Option 2: GetX with a per-page tag.**
+**Alternative: register cleanup in `onEnter`.** Instead of `onExit`, attach the cleanup when creating the controller. It runs after `onExit` completes, so `onExit` can be left out (it is optional) or kept for other work such as saving a draft or analytics.
 
 ```dart
 @override
@@ -538,9 +554,21 @@ Future<void> onEnter(BuildContext context, GoRouterState state) async {
   Get.put(JobDetailsController(...), tag: scope.id);
   scope.onDispose(() => Get.delete<JobDetailsController>(tag: scope.id));
 }
+```
 
-// In the page:
-final controller = Get.find<JobDetailsController>(tag: PlayxScope.of(context).id);
+Or keep the controller in the scope itself, without a global registry:
+
+```dart
+@override
+Future<void> onEnter(BuildContext context, GoRouterState state) async {
+  PlayxScope.of(context).put(
+    JobDetailsController(id: state.intPathParam('id')!, job: state.extraAs<Job>()),
+    dispose: (controller) => controller.onClose(),
+  );
+}
+
+// In the page or in onHidden / onReEnter / onExit:
+final controller = PlayxScope.of(context).get<JobDetailsController>();
 ```
 
 **Shared (unscoped) resources:** `binding.activeScopes` lists the pages currently using the binding. A page leaves the list before its `onExit` runs, so `if (activeScopes.isEmpty) Get.delete<JobsController>();` only cleans up when no other page needs it.
@@ -554,6 +582,169 @@ Override `redirect` on the binding to validate parameters before the page is bui
 FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
     state.intPathParam('id') == null ? '/jobs' : null;
 ```
+
+## Route Controllers and Views
+
+An optional way to give a page a controller without writing a binding. Declare the controller type on the route. The package creates one controller per page visit, runs its lifecycle hooks, and disposes it. Views get it like GetX's `GetView<T>`. It works with any state management (GetX controllers, `ChangeNotifier`, plain classes).
+
+| Way | When to use |
+|---|---|
+| Binding only | Full control: async setup, redirects, several controllers, app-level registration in `onInitApp`. |
+| Binding + `PlayxScope` | The binding creates controllers per page (`scope.put` or a GetX tag). Also readable with `PlayxView<T>`. |
+| **Route controller** | One controller per page, no binding needed: `PlayxRoute<T>(controller: ...)`. |
+
+### Declaring a controller
+
+```dart
+PlayxRoute<JobDetailsController>(
+  path: 'details/:id',
+  name: Routes.jobDetails,
+  binding: JobDetailsBinding(),   // optional, e.g. only for redirect
+  controller: (context, state) => JobDetailsController(
+    jobId: state.intPathParam('id')!,
+    job: state.extraAs<Job>(),     // null on web refresh / deep link
+  ),
+  disposeController: (controller) => controller.onClose(), // optional
+  builder: (context, state) => const JobDetailsView(),
+)
+```
+
+`PlayxShellBranch<T>` accepts the same `controller` / `disposeController` parameters.
+
+### Lifecycle hooks on the controller
+
+Mix in `PlayxPageLifecycle` to react to the page's lifecycle from the controller itself. The `onPage*` names don't clash with `GetxController`'s `onInit` / `onReady` / `onClose`.
+
+```dart
+class JobsController extends GetxController with PlayxPageLifecycle {
+  @override
+  Future<void> onPageEnter(GoRouterState state) async => loadFirstPage();
+
+  @override
+  void onPageReEnter(GoRouterState? state, bool wasPoppedAndReentered) {
+    if (pagingController.itemList?.isNotEmpty ?? false) {
+      tourController.startTour(checkRoute: false);
+    }
+  }
+
+  @override
+  void onPageHidden() => tourController.dismissTour();
+
+  @override
+  void onPageExit() {}
+}
+```
+
+Order for a route with both a binding and a controller:
+
+```
+enter:    create controller → registerController → binding.onEnter → onPageEnter → content builds
+hidden:   binding.onHidden  → onPageHidden
+reEnter:  binding.onReEnter → onPageReEnter
+exit:     binding.onExit    → onPageExit → unregisterController → disposeController
+```
+
+- The controller is created before `binding.onEnter`, so the binding can use `PlayxScope.of(context).get<T>()`.
+- Callbacks never overlap.
+- On replace, or a path parameter change, the old controller is disposed before the new one is created.
+- A page behind a deep link gets its controller when it is first shown. Until then it shows its loading widget, even with `waitForBinding: false`.
+- If the factory or `onPageEnter` throws, the route's `errorBuilder` is shown. `retry` creates a fresh controller.
+
+### `PlayxView<T>`: views and child widgets
+
+```dart
+class JobsView extends PlayxView<JobsController> {
+  const JobsView({super.key});
+
+  @override
+  Widget buildView(BuildContext context, JobsController controller) {
+    return Scaffold(
+      body: const BuildJobsList(),  // child view in another file
+      floatingActionButton: FloatingActionButton(onPressed: controller.refresh),
+    );
+  }
+}
+
+// widgets/build_jobs_list.dart
+class BuildJobsList extends PlayxView<JobsController> {
+  const BuildJobsList({super.key});
+
+  @override
+  Widget buildView(BuildContext context, JobsController controller) =>
+      PagedListView<int, Job>(
+        pagingController: controller.pagingController,
+        builderDelegate: PagedChildBuilderDelegate(
+          itemBuilder: (context, job, index) => BuildJobItem(job: job),
+        ),
+      );
+}
+
+// Plain widgets:
+final controller = context.controller<JobsController>();
+```
+
+- **Child widgets:** every widget inside the page's tree resolves the same page's controller, whatever file it lives in.
+- **`const` and callbacks:** `const` constructors and callbacks such as `onPressed` are safe, because the controller is resolved from the context on every build.
+- **Stacked pages:** each page gets its own controller (`details/1` → `details/2`).
+- **Shared base type:** a view can ask for a base type. `PlayxView<JobFormController>` works on both `PlayxRoute<CreateJobController>` and `PlayxRoute<EditJobController>`.
+- **Before the page is initialized:** in a `shellBuilder` or `initBuilder` the controller may not exist yet. Use `context.maybeController<T>()` there.
+
+**Lookup order:**
+1. The page's scope. This covers route controllers, values the binding stored with `PlayxScope.of(context).put`, and values of a subtype.
+2. `PlayxPageConfig.findController`.
+
+So `PlayxView` also works with plain bindings:
+
+```dart
+class JobsBinding extends PlayxBinding {
+  @override
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
+    PlayxScope.of(context).put(JobsController(), dispose: (c) => c.onClose());
+  }
+}
+```
+
+**Dialogs and bottom sheets** are shown above the page. Pass the page's scope down to them:
+
+```dart
+final scope = PlayxScope.of(context);
+showModalBottomSheet(
+  context: context,
+  builder: (_) => PlayxScopeProvider(scope: scope, child: const JobFilterSheet()),
+);
+```
+
+### GetX interop (optional)
+
+Configure once so route controllers are also registered in GetX (`Get.find`, `GetBuilder` keep working), and so `PlayxView` can find controllers that bindings put in GetX:
+
+```dart
+PlayxNavigationBuilder(
+  router: router,
+  config: PlayxPageConfig(
+    registerController: <T extends Object>(T controller, PlayxScope scope) =>
+        Get.put<T>(controller, tag: scope.id),
+    unregisterController: <T extends Object>(T controller, PlayxScope scope) =>
+        Get.delete<T>(tag: scope.id),
+    findController: <T extends Object>(PlayxScope scope) =>
+        Get.isRegistered<T>(tag: scope.id) ? Get.find<T>(tag: scope.id) : null,
+  ),
+  builder: (context) => const MyApp(),
+)
+```
+
+Tagging with `scope.id` keeps stacked pages of the same type apart. Without a tag, `Get.find<T>()` works anywhere (e.g. from another controller), but stacked pages of the same type share one registration.
+
+### Migrating from `GetView<T>`
+
+| Before (GetX) | After |
+|---|---|
+| `class X extends GetView<T>` | `class X extends PlayxView<T>` |
+| `Widget build(BuildContext context)` | `Widget buildView(BuildContext context, T controller)` |
+| body uses `controller` | unchanged |
+| `Get.find<T>()` in a widget | `context.controller<T>()` |
+| binding `Get.put` / `Get.delete` | `PlayxRoute<T>(controller:, disposeController:)`, or keep the binding |
+| binding `onHidden` / `onReEnter` using `Get.find` | `PlayxPageLifecycle` hooks on the controller, or keep them in the binding |
 
 ## Web
 

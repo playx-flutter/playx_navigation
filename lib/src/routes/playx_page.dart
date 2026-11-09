@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
+import 'package:playx_navigation/src/controller/playx_route_controller.dart';
 import 'package:playx_navigation/src/models/playx_page_config.dart';
 
 part '../binding/playx_scope.dart';
@@ -91,6 +92,11 @@ class PlayxPage extends StatefulWidget {
   /// [PlayxPageConfig.enterTimeout].
   final Duration? enterTimeout;
 
+  /// The route's controller configuration (`PlayxRoute<T>(controller: ...)`).
+  /// When set, the controller is created when the page is entered, stored in
+  /// the page's [PlayxScope], and disposed when the page exits.
+  final PlayxRouteController<Object>? controller;
+
   const PlayxPage({
     super.key,
     required this.binding,
@@ -103,6 +109,7 @@ class PlayxPage extends StatefulWidget {
     this.initTransitionDuration,
     this.errorBuilder,
     this.enterTimeout,
+    this.controller,
   }) : assert(
           childBuilder != null || initBuilder != null,
           'Either childBuilder or initBuilder must be provided.',
@@ -148,6 +155,23 @@ class _Visit {
   /// Whether `onEnter` completed successfully. `onHidden`, `onReEnter` and
   /// `onExit` only run for entered visits.
   bool entered = false;
+
+  /// The route controller of this visit, once created.
+  Object? controller;
+
+  /// The global config captured when [controller] was created, used again
+  /// when it is released (the page may be unmounted by then).
+  PlayxPageConfig? controllerConfig;
+
+  /// An error thrown while creating [controller] synchronously; rethrown by
+  /// `onEnter` so it goes through the normal error handling.
+  Object? createError;
+  StackTrace? createStackTrace;
+
+  PlayxPageLifecycle? get lifecycle {
+    final c = controller;
+    return c is PlayxPageLifecycle ? c : null;
+  }
 
   bool get started => phase == _Phase.active || phase == _Phase.hidden;
 }
@@ -312,6 +336,13 @@ class _PlayxPageState extends State<PlayxPage> {
           _setBindingState(visit, PlayxPageState.enter);
           final timeout = widget.enterTimeout ??
               PlayxPageConfigProvider.read(context)?.enterTimeout;
+          // Create the controller now, so it exists on the first build. If
+          // boot is still running, or a previous visit's exit is still queued
+          // (replace / path parameter change), onEnter creates it in the queue
+          // instead, so the old controller is disposed first.
+          if (PlayxNavigation.isInitialized && _pending == 0) {
+            _createController(visit);
+          }
           _enqueue(visit, () => _performOnEnter(visit, timeout));
         } else {
           // Mounted behind the top route (e.g. parent of a deep-linked child,
@@ -324,7 +355,9 @@ class _PlayxPageState extends State<PlayxPage> {
           _setBindingState(visit, PlayxPageState.hidden);
           final ctx = context;
           _enqueue(visit, () async {
-            if (visit.entered) await visit.binding.onHidden(ctx);
+            if (!visit.entered) return;
+            await visit.binding.onHidden(ctx);
+            await visit.lifecycle?.onPageHidden();
           });
         }
       case _Phase.hidden:
@@ -335,9 +368,9 @@ class _PlayxPageState extends State<PlayxPage> {
           _setBindingState(visit, PlayxPageState.reEnter);
           final ctx = context;
           _enqueue(visit, () async {
-            if (visit.entered) {
-              await visit.binding.onReEnter(ctx, routeState, wasPopped);
-            }
+            if (!visit.entered) return;
+            await visit.binding.onReEnter(ctx, routeState, wasPopped);
+            await visit.lifecycle?.onPageReEnter(routeState, wasPopped);
           });
         }
       case _Phase.failed:
@@ -392,9 +425,20 @@ class _PlayxPageState extends State<PlayxPage> {
       // Ended while waiting for boot: onEnter never runs, so neither does
       // onExit.
       if (visit.phase == _Phase.ended) return;
-      var future = Future<void>.sync(
-        () => visit.binding.onEnter(context, visit.state),
-      );
+      final createError = visit.createError;
+      if (createError != null) {
+        Error.throwWithStackTrace(
+            createError, visit.createStackTrace ?? StackTrace.empty);
+      }
+      if (widget.controller != null && visit.controller == null) {
+        _createController(visit, rethrowErrors: true);
+        // The controller now exists: let non-blocking pages build content.
+        if (mounted && visit == _visit) setState(() {});
+      }
+      var future = Future<void>.sync(() async {
+        await visit.binding.onEnter(context, visit.state);
+        await visit.lifecycle?.onPageEnter(visit.state);
+      });
       if (timeout != null) future = future.timeout(timeout);
       await future;
     } catch (error, stackTrace) {
@@ -423,9 +467,39 @@ class _PlayxPageState extends State<PlayxPage> {
     if (mounted && visit == _visit) setState(() {});
   }
 
+  /// Creates the route controller of [visit] (if the route has one and it
+  /// doesn't exist yet) and stores it in the visit's scope.
+  ///
+  /// Errors are kept on the visit and rethrown by `onEnter`, unless
+  /// [rethrowErrors] is set.
+  void _createController(_Visit visit, {bool rethrowErrors = false}) {
+    final config = widget.controller;
+    if (config == null || visit.controller != null) return;
+    try {
+      final pageConfig = PlayxPageConfigProvider.read(context);
+      visit.controllerConfig = pageConfig;
+      visit.controller =
+          config.createIn(context, visit.state, visit.scope, pageConfig);
+    } catch (error, stackTrace) {
+      if (rethrowErrors) rethrow;
+      visit.createError = error;
+      visit.createStackTrace = stackTrace;
+    }
+  }
+
+  /// Unregisters and disposes the route controller of [visit], if created.
+  void _releaseController(_Visit visit) {
+    final controller = visit.controller;
+    final config = widget.controller;
+    if (controller == null || config == null) return;
+    visit.controller = null;
+    config.release(controller, visit.scope, visit.controllerConfig);
+  }
+
   /// Runs `onEnter` again after a failure.
   void _retry() {
     if (_error == null || !mounted) return;
+    _releaseController(_visit);
     _visit.scope._dispose();
     _visit = _Visit(widget.binding, widget.state);
     setState(() {
@@ -448,8 +522,15 @@ class _PlayxPageState extends State<PlayxPage> {
     final ctx = context;
     _enqueue(visit, () async {
       try {
-        if (wasStarted && visit.entered) await visit.binding.onExit(ctx);
+        if (wasStarted && visit.entered) {
+          try {
+            await visit.binding.onExit(ctx);
+          } finally {
+            await visit.lifecycle?.onPageExit();
+          }
+        }
       } finally {
+        _releaseController(visit);
         visit.scope._dispose();
       }
     });
@@ -485,7 +566,7 @@ class _PlayxPageState extends State<PlayxPage> {
 
   @override
   Widget build(BuildContext context) {
-    return _PlayxScopeProvider(
+    return PlayxScopeProvider(
         scope: _visit.scope, child: _buildContent(context));
   }
 
@@ -535,8 +616,13 @@ class _PlayxPageState extends State<PlayxPage> {
       );
     }
 
+    // A route controller must exist before the content can build, even in
+    // non-blocking mode (e.g. a pending page behind a deep link).
+    final controllerMissing =
+        widget.controller != null && _visit.controller == null;
+
     // No shell: respect waitForBinding.
-    if (!_initialized && effectiveWait) {
+    if (!_initialized && (effectiveWait || controllerMissing)) {
       // Blocking mode (default): show loading until ready.
       return _withTransition(effectiveLoading, effectiveDuration);
     }
