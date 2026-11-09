@@ -8,6 +8,7 @@ export 'src/breadcrumbs/playx_breadcrumb.dart'
     show PlayxBreadcrumbItem, PlayxBreadcrumbLabelBuilder, PlayxBreadcrumbMode;
 export 'src/breadcrumbs/playx_breadcrumb_labels.dart' show PlayxBreadcrumbLabel;
 export 'src/breadcrumbs/playx_breadcrumbs.dart';
+export 'src/breadcrumbs/playx_page_title.dart';
 export 'src/controller/playx_page_lifecycle.dart';
 export 'src/controller/playx_route_controller.dart' show PlayxControllerBuilder;
 export 'src/controller/playx_view.dart';

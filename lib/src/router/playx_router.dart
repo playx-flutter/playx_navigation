@@ -330,6 +330,36 @@ class PlayxRouter {
     return stateOrNull?.pageKey == pageKey;
   }
 
+  /// Pops until the page showing [location] is on top.
+  ///
+  /// Only the path of [location] is compared (not query parameters or
+  /// fragments), and the page closest to the top wins. Returns `true` if that
+  /// page is now on top. If no page in the stack shows [location], nothing is
+  /// popped and `false` is returned, unless [orGo] is set, which then goes to
+  /// [location] and returns `true`.
+  bool popUntil(String location, {bool orGo = false}) {
+    final path = Uri.parse(location).path;
+    final target = pageStack.reversed
+        .where((state) => state.matchedLocation == path)
+        .firstOrNull;
+    if (target != null) return popToPage(target.pageKey);
+    if (!orGo) return false;
+    router.go(location);
+    return true;
+  }
+
+  /// Like [popUntil], for the named route [name].
+  bool popUntilNamed(
+    String name, {
+    Map<String, String> pathParameters = const <String, String>{},
+    bool orGo = false,
+  }) {
+    return popUntil(
+      namedLocation(name, pathParameters: pathParameters),
+      orGo: orGo,
+    );
+  }
+
   GoRouterState _buildState(RouteMatchList list, RouteMatch match) {
     return GoRouterState(
       router.configuration,

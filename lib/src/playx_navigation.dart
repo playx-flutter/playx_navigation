@@ -188,6 +188,24 @@ abstract class PlayxNavigation {
   /// Returns the [PlayxRouter] used for navigation.
   static PlayxRouter get playxRouter => _router;
 
+  /// The browser tab title last applied by `PlayxNavigationBuilder.pageTitle`,
+  /// or `null` if none is active.
+  ///
+  /// Flutter's `MaterialApp` resets the tab title to its own `title` whenever
+  /// it rebuilds (theme or locale changes, a rebuilt parent). Return this from
+  /// `onGenerateTitle` so a rebuild keeps the current page title:
+  ///
+  /// ```dart
+  /// MaterialApp.router(
+  ///   onGenerateTitle: (context) => PlayxNavigation.pageTitle ?? 'My App',
+  ///   routerConfig: router,
+  /// )
+  /// ```
+  static String? pageTitle;
+
+  /// Whether a router has been set up (by [boot] or `PlayxNavigationBuilder`).
+  static bool get hasRouter => _playxRouter != null;
+
   /// The breadcrumb trail of the current page.
   ///
   /// Labels come from runtime labels of live pages (`PlayxBreadcrumbLabel`,
@@ -463,6 +481,36 @@ abstract class PlayxNavigation {
       extra: extra,
     );
   }
+
+  /// Pops until the page showing [location] is on top.
+  ///
+  /// Returns `true` if that page is now on top. Pages above it exit
+  /// normally (`onHidden` / `onExit`) and it gets `onReEnter`. If [location]
+  /// is not in the navigation stack nothing is popped and `false` is
+  /// returned, unless [orGo] is set, which then goes to [location]. Useful
+  /// on web where the stack may be empty after a refresh:
+  ///
+  /// ```dart
+  /// PlayxNavigation.popUntil('/jobs', orGo: true);
+  /// ```
+  static bool popUntil(String location, {bool orGo = false}) =>
+      _router.popUntil(location, orGo: orGo);
+
+  /// Like [popUntil], for the named route [name].
+  ///
+  /// ```dart
+  /// PlayxNavigation.popUntilNamed('jobs', orGo: true);
+  /// ```
+  static bool popUntilNamed(
+    String name, {
+    Map<String, String> pathParameters = const <String, String>{},
+    bool orGo = false,
+  }) =>
+      _router.popUntilNamed(
+        name,
+        pathParameters: pathParameters,
+        orGo: orGo,
+      );
 
   /// Pops the top-most route if possible, otherwise goes to the current
   /// page's parent.

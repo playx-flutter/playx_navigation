@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/binding/playx_binding.dart';
+import 'package:playx_navigation/src/breadcrumbs/playx_page_title.dart';
 import 'package:playx_navigation/src/models/playx_page_config.dart';
 import 'package:playx_navigation/src/playx_navigation.dart';
 
@@ -65,11 +67,19 @@ class PlayxNavigationBuilder extends StatefulWidget {
   /// - `shellBuilder`: `null` (no shell)
   final PlayxPageConfig? config;
 
+  /// Optional browser tab title built from the breadcrumb trail.
+  ///
+  /// When set, the title follows the current page: it is updated after every
+  /// navigation and whenever a breadcrumb label changes, using the labels
+  /// declared with `breadcrumb` on routes and bindings.
+  final PlayxPageTitle? pageTitle;
+
   const PlayxNavigationBuilder({
     super.key,
     required this.builder,
     this.router,
     this.config,
+    this.pageTitle,
   });
 
   @override
@@ -77,10 +87,64 @@ class PlayxNavigationBuilder extends StatefulWidget {
 }
 
 class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
+  Listenable? _titleSource;
+  String? _lastTitle;
+
   @override
   void initState() {
     super.initState();
     setupRouter();
+  }
+
+  @override
+  void didUpdateWidget(PlayxNavigationBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pageTitle != widget.pageTitle) {
+      _lastTitle = null;
+      _attachTitle();
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleSource?.removeListener(_updateTitle);
+    PlayxNavigation.pageTitle = null;
+    super.dispose();
+  }
+
+  /// Starts following the breadcrumb trail for the browser tab title.
+  void _attachTitle() {
+    if (!mounted || !PlayxNavigation.hasRouter) return;
+    if (widget.pageTitle == null) {
+      _titleSource?.removeListener(_updateTitle);
+      _titleSource = null;
+      return;
+    }
+    if (_titleSource == null) {
+      _titleSource = PlayxNavigation.breadcrumbsListenable;
+      _titleSource!.addListener(_updateTitle);
+    }
+    // Wait for the first frame, so the app's Navigator (and Localizations)
+    // exist for labels that need them.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateTitle());
+  }
+
+  void _updateTitle() {
+    final config = widget.pageTitle;
+    if (!mounted || config == null || !PlayxNavigation.hasRouter) return;
+    final context = PlayxNavigation.navigationContext ?? this.context;
+    final items = PlayxNavigation.breadcrumbs(
+      context,
+      mode: config.mode,
+      rootLocation: config.rootLocation,
+    );
+    final title = config.resolve(context, items);
+    if (title == null || title == _lastTitle) return;
+    _lastTitle = title;
+    PlayxNavigation.pageTitle = title;
+    SystemChrome.setApplicationSwitcherDescription(
+      ApplicationSwitcherDescription(label: title),
+    );
   }
 
   /// Initializes the [PlayxNavigation] system.
@@ -103,6 +167,15 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
         ));
       }
     }
+    if (widget.router == null && widget.pageTitle != null) {
+      // The router is booted elsewhere: follow it once it is ready.
+      try {
+        await PlayxNavigation.ensureInitialized;
+      } catch (_) {
+        return; // The boot error is reported where boot was called.
+      }
+    }
+    _attachTitle();
   }
 
   @override
