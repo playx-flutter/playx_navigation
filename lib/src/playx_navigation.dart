@@ -123,7 +123,11 @@ abstract class PlayxNavigation {
   /// returns `true`.
   static Future<void> boot({required GoRouter router}) async {
     // Reset the completer and bindings for fresh initialization (supports re-boot).
-    final completer = Completer<void>();
+    // Reuse a pending completer so anyone already awaiting ensureInitialized
+    // (before boot was called) is released; start a new one for a re-boot.
+    final pending = _initCompleter;
+    final completer =
+        pending != null && !pending.isCompleted ? pending : Completer<void>();
     _initCompleter = completer;
     _initialized = false;
     _bindings.clear();
@@ -131,9 +135,9 @@ abstract class PlayxNavigation {
       _playxRouter = PlayxRouter(router: router);
       await _initializeBindings(router);
       _initialized = true;
-      completer.complete();
+      if (!completer.isCompleted) completer.complete();
     } catch (e, s) {
-      completer.completeError(e, s);
+      if (!completer.isCompleted) completer.completeError(e, s);
       // The error is rethrown to the caller of boot; awaiting
       // ensureInitialized still receives it, but nobody has to.
       completer.future.ignore();
