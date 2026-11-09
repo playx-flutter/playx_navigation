@@ -195,6 +195,43 @@ class PlayxRouter {
     return false;
   }
 
+  /// Pops the top-most route if possible, otherwise navigates to [location].
+  ///
+  /// Useful for "back" buttons on web: after a refresh, a typed URL or a deep
+  /// link there may be nothing to pop.
+  void popOrGo<T extends Object?>(
+    String location, {
+    T? result,
+    Object? extra,
+  }) {
+    if (canPop()) {
+      router.pop(result);
+    } else {
+      router.go(location, extra: extra);
+    }
+  }
+
+  /// Pops the top-most route if possible, otherwise navigates to the named
+  /// route [name].
+  void popOrGoNamed<T extends Object?>(
+    String name, {
+    T? result,
+    Map<String, String> pathParameters = const <String, String>{},
+    Map<String, dynamic> queryParameters = const <String, dynamic>{},
+    Object? extra,
+  }) {
+    if (canPop()) {
+      router.pop(result);
+    } else {
+      router.goNamed(
+        name,
+        pathParameters: pathParameters,
+        queryParameters: queryParameters,
+        extra: extra,
+      );
+    }
+  }
+
   /// Returns `true` if there is at least two or more route can be pop.
   bool canPop() => router.canPop();
 

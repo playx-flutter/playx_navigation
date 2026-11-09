@@ -388,6 +388,46 @@ abstract class PlayxNavigation {
     return _router.maybePop(result);
   }
 
+  /// Pops the top-most route if possible, otherwise navigates to [location].
+  ///
+  /// Use it for "back" buttons, especially on web: after a refresh, a typed
+  /// URL or a deep link there may be nothing to pop.
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.popOrGo('/jobs');
+  /// ```
+  static void popOrGo<T extends Object?>(
+    String location, {
+    T? result,
+    Object? extra,
+  }) {
+    return _router.popOrGo<T>(location, result: result, extra: extra);
+  }
+
+  /// Pops the top-most route if possible, otherwise navigates to the named
+  /// route [name].
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.popOrGoNamed('jobs');
+  /// ```
+  static void popOrGoNamed<T extends Object?>(
+    String name, {
+    T? result,
+    Map<String, String> pathParameters = const <String, String>{},
+    Map<String, dynamic> queryParameters = const <String, dynamic>{},
+    Object? extra,
+  }) {
+    return _router.popOrGoNamed<T>(
+      name,
+      result: result,
+      pathParameters: pathParameters,
+      queryParameters: queryParameters,
+      extra: extra,
+    );
+  }
+
   /// Returns `true` if there are two or more routes in the navigation stack that can be popped.
   ///
   /// Example usage:

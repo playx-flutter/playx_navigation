@@ -13,6 +13,12 @@
   ```
 - **`onEnter` error handling**: Added `errorBuilder` and `enterTimeout` to `PlayxRoute`, `PlayxShellBranch` and `PlayxPageConfig` (route values override global ones). If `onEnter` throws or times out, `errorBuilder` receives the error and a `retry` callback. Without an `errorBuilder`, the error is reported via `FlutterError.reportError` instead of being an unhandled async error, and the loading state is kept.
 
+- **Page scopes (`PlayxScope`)**: every page with a binding gets a scope for its visit, from `onEnter` to `onExit`. Get it with `PlayxScope.of(context)` in binding callbacks and page widgets. It provides a unique `id` (for GetX tags and similar registries), a small `put` / `get` container with automatic `dispose`, `onDispose` callbacks that run after `onExit`, and the page's own `pageState`. This keeps controllers of stacked pages (`details/1` → `details/2`, edit → create) from overwriting or deleting each other.
+- **`PlayxBinding.redirect`**: validate navigation before the page is built (e.g. a missing or invalid id). Runs only when the binding's own route is the destination.
+- **`PlayxBinding.activeScopes`**: the pages currently using a binding, for cleaning up shared resources only when the last page leaves.
+- **`PlayxNavigation.popOrGo` / `popOrGoNamed`**: pop, or go to a fallback when there is nothing to pop (web refresh, deep links).
+- **`GoRouterState` helpers**: `extraAs<T>()`, `intPathParam(name)`, `intQueryParam(name)`, which return `null` instead of throwing.
+
 ### Fixes
 - **Binding lifecycle rewritten per page instance.** Each `PlayxPage` now owns its lifecycle instead of `PlayxNavigationBuilder` comparing top routes. This fixes:
   - `onHidden` / `onReEnter` not firing for the initial route.
@@ -27,7 +33,8 @@
 - `PlayxPageState` is now exported.
 
 ### Other
-- Added unit/widget tests for the binding lifecycle, error handling and guards.
+- Guard chains stay synchronous unless a guard returns a `Future`, so routes with bindings or guards don't resolve a frame later.
+- Added unit/widget tests for the binding lifecycle, scopes, binding redirects, web back/forward, error handling and guards.
 - Updated `go_router` to ^17.5.0 and refreshed dependencies and the example app.
 
 ## 2.1.0

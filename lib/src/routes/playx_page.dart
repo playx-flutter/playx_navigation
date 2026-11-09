@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 import 'package:playx_navigation/src/models/playx_page_config.dart';
 
+part '../binding/playx_scope.dart';
+
 /// An internal widget that wraps a route's content and manages the
 /// [PlayxBinding] lifecycle via standard widget lifecycle methods.
 ///
@@ -136,10 +138,11 @@ enum _Phase {
 /// route with different path parameters), so the old visit's `onExit`
 /// completes before the new visit's `onEnter` starts.
 class _Visit {
-  _Visit(this.binding, this.state);
+  _Visit(this.binding, this.state) : scope = PlayxScope._(binding, state);
 
   final PlayxBinding binding;
   final GoRouterState state;
+  final PlayxScope scope;
   _Phase phase = _Phase.idle;
 
   /// Whether `onEnter` completed successfully. `onHidden`, `onReEnter` and
@@ -223,9 +226,18 @@ class _PlayxPageState extends State<PlayxPage> {
 
   bool get _initialized => _visit.entered;
 
+  /// The visit whose callback is currently running, if any.
+  _Visit? _runningVisit;
+
+  /// The scope [PlayxScope.of] returns for this page's own context: the one
+  /// of the running callback (which may belong to a visit that just ended),
+  /// otherwise the current visit's.
+  PlayxScope get _scopeForCallbacks => (_runningVisit ?? _visit).scope;
+
   @override
   void initState() {
     super.initState();
+    _pageOfElement[context] = this;
     _visit = _Visit(widget.binding, widget.state);
     _lastKeys = _currentPageKeys();
     PlayxNavigation.addRouteChangeListener(_onRouteChanged);
@@ -270,8 +282,17 @@ class _PlayxPageState extends State<PlayxPage> {
   }
 
   void _setBindingState(_Visit visit, PlayxPageState state) {
+    visit.scope._pageState = state;
     visit.binding.currentState = state;
     _stateOwner[visit.binding] = visit;
+  }
+
+  void _addActiveScope(_Visit visit) {
+    (_activeScopes[visit.binding] ??= <PlayxScope>[]).add(visit.scope);
+  }
+
+  void _removeActiveScope(_Visit visit) {
+    _activeScopes[visit.binding]?.remove(visit.scope);
   }
 
   /// Decides, synchronously, which lifecycle transition (if any) the latest
@@ -287,6 +308,7 @@ class _PlayxPageState extends State<PlayxPage> {
         if (leaving) break;
         if (top) {
           visit.phase = _Phase.active;
+          _addActiveScope(visit);
           _setBindingState(visit, PlayxPageState.enter);
           final timeout = widget.enterTimeout ??
               PlayxPageConfigProvider.read(context)?.enterTimeout;
@@ -329,10 +351,15 @@ class _PlayxPageState extends State<PlayxPage> {
   /// When nothing is pending the callback starts synchronously. Errors from
   /// callbacks are reported without breaking the chain.
   void _enqueue(_Visit visit, Future<void> Function() callback) {
+    Future<void> tracked() {
+      _runningVisit = visit;
+      return Future<void>.sync(callback)
+          .whenComplete(() => _runningVisit = null);
+    }
+
     _pending++;
-    final Future<void> run = _pending == 1
-        ? Future<void>.sync(callback)
-        : _tail.then((_) => callback());
+    final Future<void> run =
+        _pending == 1 ? tracked() : _tail.then((_) => tracked());
     _tail = run
         .catchError((Object error, StackTrace stackTrace) => _report(
               error,
@@ -379,6 +406,7 @@ class _PlayxPageState extends State<PlayxPage> {
       }
       // onEnter did not complete, so the page is not entered.
       visit.phase = _Phase.failed;
+      _removeActiveScope(visit);
       _setBindingState(visit, PlayxPageState.pending);
       final hasErrorBuilder = widget.errorBuilder != null ||
           PlayxPageConfigProvider.read(context)?.errorBuilder != null;
@@ -398,6 +426,7 @@ class _PlayxPageState extends State<PlayxPage> {
   /// Runs `onEnter` again after a failure.
   void _retry() {
     if (_error == null || !mounted) return;
+    _visit.scope._dispose();
     _visit = _Visit(widget.binding, widget.state);
     setState(() {
       _error = null;
@@ -408,15 +437,22 @@ class _PlayxPageState extends State<PlayxPage> {
 
   /// Ends [visit]: queues `onExit` if `onEnter` was started (it runs after any
   /// still-running callback, so exit never overlaps enter).
+  ///
+  /// The visit's [PlayxScope] is removed from the binding's active scopes right
+  /// away, and disposed after `onExit` completes.
   void _endVisit(_Visit visit) {
     final wasStarted = visit.started;
     visit.phase = _Phase.ended;
-    if (wasStarted) {
-      final ctx = context;
-      _enqueue(visit, () async {
-        if (visit.entered) await visit.binding.onExit(ctx);
-      });
-    }
+    _removeActiveScope(visit);
+    visit.scope._pageState = PlayxPageState.exit;
+    final ctx = context;
+    _enqueue(visit, () async {
+      try {
+        if (wasStarted && visit.entered) await visit.binding.onExit(ctx);
+      } finally {
+        visit.scope._dispose();
+      }
+    });
     if (_stateOwner[visit.binding] == visit) {
       visit.binding.currentState = PlayxPageState.exit;
     }
@@ -449,6 +485,11 @@ class _PlayxPageState extends State<PlayxPage> {
 
   @override
   Widget build(BuildContext context) {
+    return _PlayxScopeProvider(
+        scope: _visit.scope, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     // --- onEnter failed: show the error widget if one is configured ---
     if (_error != null) {
       final errorBuilder = widget.errorBuilder ??

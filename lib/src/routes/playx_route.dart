@@ -210,7 +210,10 @@ class PlayxRoute extends GoRoute {
           'Use builder for library-managed loading, or initBuilder for full control.',
         ),
         super(
-          redirect: composeGuards(guards, redirect),
+          redirect: composeGuards(
+            [...guards, if (binding != null) PlayxBindingGuard(binding)],
+            redirect,
+          ),
           pageBuilder: (ctx, state) {
             final Widget pageChild;
 

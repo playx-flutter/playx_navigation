@@ -326,7 +326,7 @@ Each page instance in the navigation stack has its own lifecycle:
 - **Failed `onEnter`.** If `onEnter` throws or times out, no `onHidden` / `onReEnter` / `onExit` is called for that page, since it never entered.
 - **Only router navigation counts.** Dialogs, bottom sheets and routes pushed with `Navigator.push` (outside go_router) don't hide the page underneath.
 
-> **Sharing a binding between pages that are alive at the same time** (the same route stacked twice, or one binding instance used by several routes): every page still gets its own `onEnter` / `onExit`, so `onExit` of one page can run while another page of the same binding is active. When the pages are different routes (for example `push` then `go` to the same details route), the new page's `onEnter` can also run before the old page's `onExit`. Don't blindly delete shared resources in `onExit` in that setup.
+> **Sharing a binding between pages that are alive at the same time** (the same route stacked twice, or one binding instance used by several routes): every page gets its own `onEnter` / `onExit`, so `onExit` of one page can run while another page of the same binding is still active. Keep controllers in the page's [`PlayxScope`](#page-scopes-and-state-management) (or tag them with `scope.id`), or check `activeScopes` before deleting shared resources.
 
 ### Navigation Scenarios
 
@@ -495,6 +495,73 @@ PlayxRoute(
 ```
 
 Set to `Duration.zero` to explicitly disable animation for a specific route when a global duration is set.
+
+## Page Scopes and State Management
+
+Every page with a binding gets a `PlayxScope`: one per page visit, from `onEnter` to `onExit`. It works with any state management (GetX, Bloc, Provider, ChangeNotifier...) and solves the classic problem of stacked pages (`details/1` → `details/2`, or `edit` → `create` sharing a `JobFormController`) overwriting or deleting each other's controllers.
+
+Get it with `PlayxScope.of(context)`, both in binding callbacks (using the `context` they receive) and in the page's widgets.
+
+| Member | Purpose |
+|---|---|
+| `id` | Unique per page visit. Use it as a GetX `tag`, a family key, etc. |
+| `put<T>(value, dispose: ...)` / `get<T>()` / `maybeGet<T>()` / `has<T>()` | Store objects in the page itself, no global registry. |
+| `onDispose(callback)` | Runs after `onExit` completes, e.g. to unregister from a global registry. |
+| `state`, `pageState`, `isActive` | This page's `GoRouterState` and lifecycle state (`binding.currentState` is shared by every page of the binding). |
+
+**Option 1: keep controllers in the scope (no global registry).**
+
+```dart
+class JobDetailsBinding extends PlayxBinding {
+  @override
+  Future<void> onEnter(BuildContext context, GoRouterState state) async {
+    PlayxScope.of(context).put(
+      JobDetailsController(id: state.intPathParam('id')!, job: state.extraAs<Job>()),
+      dispose: (controller) => controller.onClose(),
+    );
+  }
+
+  @override
+  Future<void> onExit(BuildContext context) async {}
+}
+
+// In the page:
+final controller = PlayxScope.of(context).get<JobDetailsController>();
+```
+
+**Option 2: GetX with a per-page tag.**
+
+```dart
+@override
+Future<void> onEnter(BuildContext context, GoRouterState state) async {
+  final scope = PlayxScope.of(context);
+  Get.put(JobDetailsController(...), tag: scope.id);
+  scope.onDispose(() => Get.delete<JobDetailsController>(tag: scope.id));
+}
+
+// In the page:
+final controller = Get.find<JobDetailsController>(tag: PlayxScope.of(context).id);
+```
+
+**Shared (unscoped) resources:** `binding.activeScopes` lists the pages currently using the binding. A page leaves the list before its `onExit` runs, so `if (activeScopes.isEmpty) Get.delete<JobsController>();` only cleans up when no other page needs it.
+
+### Validating Before the Page Is Built
+
+Override `redirect` on the binding to validate parameters before the page is built. Return a location to redirect there, or `null` to continue. It runs after the route's `guards` and only when the binding's own route is the destination, not its sub-routes. This is better than navigating away inside `onEnter`, where the page would still be built with missing data.
+
+```dart
+@override
+FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+    state.intPathParam('id') == null ? '/jobs' : null;
+```
+
+## Web
+
+- **`extra` is not part of the URL.** After a refresh, a typed or shared URL, or a deep link, `state.extra` is `null`. Treat it as an optional shortcut and load data by id: `state.extraAs<Job>()` returns `null` instead of throwing, and `state.intPathParam('id')` / `state.intQueryParam('page')` parse safely. To keep `extra` across browser back/forward, give `GoRouter` an `extraCodec`.
+- **Back buttons.** After a refresh or deep link there may be nothing to pop. Use `PlayxNavigation.popOrGo('/jobs')` (or `popOrGoNamed`) to pop when possible and otherwise go to a fallback.
+- **Browser back/forward** work like pop and push: the page that was left gets `onExit`, the revealed page `onReEnter`, and going forward creates a new page with `onEnter`.
+- **Refresh** restarts the app: `onInitApp` runs again, and the pages of the URL behave like a deep link (only the visible page enters; pages behind it are pending).
+- Call `PlayxNavigation.setupWeb()` before `runApp` for path URLs and URLs that reflect `push`.
 
 ## Route Guards
 
