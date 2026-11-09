@@ -1,0 +1,77 @@
+site_name: Playx Navigation
+site_description: Lifecycle-aware navigation for Flutter, built on go_router.
+site_url: https://playx-flutter.github.io/playx_navigation/
+repo_url: https://github.com/playx-flutter/playx_navigation
+repo_name: playx-flutter/playx_navigation
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: warn
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation and setup: getting-started.md
+      - Choosing an approach: choosing-an-approach.md
+  - Core concepts:
+      - Routes and transitions: routes.md
+      - Bindings and lifecycle: bindings.md
+      - Page configuration: page-configuration.md
+      - Guards and redirects: guards-and-redirects.md
+      - Error handling: error-handling.md
+  - State management:
+      - Scopes: scopes.md
+      - Route controllers and views: controllers-and-views.md
+      - GetX and other registries: state-management-interop.md
+  - Navigation:
+      - PlayxNavigation API: navigation-api.md
+      - Web: web.md
+      - Breadcrumbs and page titles: breadcrumbs.md
+  - Guides:
+      - Testing your app: testing.md
+      - Migrating to 3.0: migration.md
+      - Troubleshooting: troubleshooting.md
+  - API reference: https://playx-flutter.github.io/playx_navigation/api/
