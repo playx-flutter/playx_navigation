@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart' as flutter_web_plugins;
 import 'package:go_router/go_router.dart';
 
+import 'breadcrumbs/playx_breadcrumb.dart';
+import 'breadcrumbs/playx_breadcrumb_labels.dart';
 import 'router/playx_router.dart';
 import 'routes/playx_route.dart';
 import 'binding/playx_binding.dart';
@@ -25,6 +27,8 @@ abstract class PlayxNavigation {
   static PlayxRouter? _playxRouter;
 
   static Completer<void>? _initCompleter;
+
+  static bool _initialized = false;
 
   static final List<PlayxBinding> _bindings = [];
 
@@ -92,8 +96,7 @@ abstract class PlayxNavigation {
   ///
   /// Returns `true` after [boot] has completed (including all
   /// [PlayxBinding.onInitApp] invocations). Returns `false` otherwise.
-  static bool get isInitialized =>
-      _initCompleter != null && _initCompleter!.isCompleted;
+  static bool get isInitialized => _initialized;
 
   /// Gets the singleton instance of [PlayxRouter].
   ///
@@ -120,14 +123,24 @@ abstract class PlayxNavigation {
   /// returns `true`.
   static Future<void> boot({required GoRouter router}) async {
     // Reset the completer and bindings for fresh initialization (supports re-boot).
-    _initCompleter = Completer<void>();
+    // Reuse a pending completer so anyone already awaiting ensureInitialized
+    // (before boot was called) is released; start a new one for a re-boot.
+    final pending = _initCompleter;
+    final completer =
+        pending != null && !pending.isCompleted ? pending : Completer<void>();
+    _initCompleter = completer;
+    _initialized = false;
     _bindings.clear();
     try {
       _playxRouter = PlayxRouter(router: router);
       await _initializeBindings(router);
-      _initCompleter!.complete();
+      _initialized = true;
+      if (!completer.isCompleted) completer.complete();
     } catch (e, s) {
-      _initCompleter!.completeError(e, s);
+      if (!completer.isCompleted) completer.completeError(e, s);
+      // The error is rethrown to the caller of boot; awaiting
+      // ensureInitialized still receives it, but nobody has to.
+      completer.future.ignore();
       rethrow;
     }
   }
@@ -183,9 +196,64 @@ abstract class PlayxNavigation {
   /// Returns the [GoRouter] instance used for navigation.
   static GoRouter get goRouter => _router.router;
 
+  /// Returns the [PlayxRouter] used for navigation.
+  static PlayxRouter get playxRouter => _router;
+
+  /// The browser tab title last applied by `PlayxNavigationBuilder.pageTitle`,
+  /// or `null` if none is active.
+  ///
+  /// Flutter's `MaterialApp` resets the tab title to its own `title` whenever
+  /// it rebuilds (theme or locale changes, a rebuilt parent). Return this from
+  /// `onGenerateTitle` so a rebuild keeps the current page title:
+  ///
+  /// ```dart
+  /// MaterialApp.router(
+  ///   onGenerateTitle: (context) => PlayxNavigation.pageTitle ?? 'My App',
+  ///   routerConfig: router,
+  /// )
+  /// ```
+  static String? pageTitle;
+
+  /// Whether a router has been set up (by [boot] or `PlayxNavigationBuilder`).
+  static bool get hasRouter => _playxRouter != null;
+
+  /// The breadcrumb trail of the current page.
+  ///
+  /// Labels come from runtime labels of live pages (`PlayxBreadcrumbLabel`,
+  /// [setBreadcrumbLabel]), then the route's `breadcrumb`, then its binding's
+  /// `breadcrumb`; pages without a label are skipped. See
+  /// [PlayxBreadcrumbMode] for [mode]; [rootLocation] (e.g. `/home`) is
+  /// prepended in [PlayxBreadcrumbMode.hierarchy].
+  ///
+  /// To rebuild a widget when it changes, listen to [breadcrumbsListenable]
+  /// or use `PlayxBreadcrumbsBuilder`.
+  static List<PlayxBreadcrumbItem> breadcrumbs(
+    BuildContext context, {
+    PlayxBreadcrumbMode mode = PlayxBreadcrumbMode.hierarchy,
+    String? rootLocation,
+  }) =>
+      resolveBreadcrumbs(context, mode: mode, rootLocation: rootLocation);
+
+  /// Sets the breadcrumb label of the page [context] belongs to (a binding
+  /// callback context, or any widget inside the page). `null` clears it.
+  ///
+  /// Removed automatically when the page's scope is disposed. For pages
+  /// without a binding or controller, prefer the `PlayxBreadcrumbLabel`
+  /// widget, which removes it when unmounted.
+  static void setBreadcrumbLabel(BuildContext context, String? label) =>
+      PlayxBreadcrumbLabels.instance.setFor(context, label);
+
+  /// Notifies when the breadcrumb trail may have changed (navigation or a
+  /// runtime label change).
+  static Listenable get breadcrumbsListenable => PlayxBreadcrumbLabels.instance
+    ..attachRouter(_router.router.routerDelegate);
+
   /// Gets the current [GoRouterState] object representing the current state of the
   /// navigation stack.
-  static GoRouterState? get currentState => _router.state;
+  ///
+  /// Returns `null` when there is no matched route, e.g. while go_router shows
+  /// its error page for an unknown location.
+  static GoRouterState? get currentState => _router.stateOrNull;
 
   /// Gets the current [RouteMatch] object representing the current route in the
   /// navigation stack.
@@ -277,15 +345,20 @@ abstract class PlayxNavigation {
   /// The [name] parameter specifies the name of the new route, and the optional
   /// [extra] parameter can be used to pass additional data to the route.
   ///
+  /// Returns a [Future] that completes with the result of the new route when
+  /// it is popped (like [to]). It does **not** complete when the replacement
+  /// happens, so don't `await` it unless you want to wait for that result.
+  ///
   /// Example usage:
   /// ```dart
-  /// await PlayxNavigation.offAndTo('/profile', extra: {'userId': 123});
+  /// PlayxNavigation.offAndTo('/profile', extra: {'userId': 123});
+  /// final saved = await PlayxNavigation.offAndTo<bool>('/edit');
   /// ```
-  static Future<void> offAndTo(
+  static Future<T?> offAndTo<T>(
     String name, {
     Object? extra,
-  }) async {
-    return _router.offAndTo(
+  }) {
+    return _router.offAndTo<T>(
       name,
       extra: extra,
     );
@@ -347,17 +420,20 @@ abstract class PlayxNavigation {
   /// parameters include [pathParameters], [queryParameters], and [extra] for
   /// passing data to the route.
   ///
+  /// Returns a [Future] that completes with the result of the new route when
+  /// it is popped (see [offAndTo]).
+  ///
   /// Example usage:
   /// ```dart
-  /// await PlayxNavigation.offAndToNamed('profile', pathParameters: {'userId': '123'});
+  /// PlayxNavigation.offAndToNamed('profile', pathParameters: {'userId': '123'});
   /// ```
-  static Future<void> offAndToNamed(
+  static Future<T?> offAndToNamed<T>(
     String name, {
     Map<String, String> pathParameters = const <String, String>{},
     Map<String, dynamic> queryParameters = const <String, dynamic>{},
     Object? extra,
-  }) async {
-    return _router.offAndToNamed(
+  }) {
+    return _router.offAndToNamed<T>(
       name,
       pathParameters: pathParameters,
       queryParameters: queryParameters,
@@ -384,6 +460,100 @@ abstract class PlayxNavigation {
   static bool maybePop<T extends Object?>([T? result]) {
     return _router.maybePop(result);
   }
+
+  /// Pops the top-most route if possible, otherwise navigates to [location].
+  ///
+  /// Use it for "back" buttons, especially on web: after a refresh, a typed
+  /// URL or a deep link there may be nothing to pop.
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.popOrGo('/jobs');
+  /// ```
+  static void popOrGo<T extends Object?>(
+    String location, {
+    T? result,
+    Object? extra,
+  }) {
+    return _router.popOrGo<T>(location, result: result, extra: extra);
+  }
+
+  /// Pops the top-most route if possible, otherwise navigates to the named
+  /// route [name].
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.popOrGoNamed('jobs');
+  /// ```
+  static void popOrGoNamed<T extends Object?>(
+    String name, {
+    T? result,
+    Map<String, String> pathParameters = const <String, String>{},
+    Map<String, dynamic> queryParameters = const <String, dynamic>{},
+    Object? extra,
+  }) {
+    return _router.popOrGoNamed<T>(
+      name,
+      result: result,
+      pathParameters: pathParameters,
+      queryParameters: queryParameters,
+      extra: extra,
+    );
+  }
+
+  /// Pops until the page showing [location] is on top.
+  ///
+  /// Returns `true` if that page is now on top. Pages above it exit
+  /// normally (`onHidden` / `onExit`) and it gets `onReEnter`. If [location]
+  /// is not in the navigation stack nothing is popped and `false` is
+  /// returned, unless [orGo] is set, which then goes to [location]. Useful
+  /// on web where the stack may be empty after a refresh:
+  ///
+  /// ```dart
+  /// PlayxNavigation.popUntil('/jobs', orGo: true);
+  /// ```
+  static bool popUntil(String location, {bool orGo = false}) =>
+      _router.popUntil(location, orGo: orGo);
+
+  /// Like [popUntil], for the named route [name].
+  ///
+  /// ```dart
+  /// PlayxNavigation.popUntilNamed('jobs', orGo: true);
+  /// ```
+  static bool popUntilNamed(
+    String name, {
+    Map<String, String> pathParameters = const <String, String>{},
+    bool orGo = false,
+  }) =>
+      _router.popUntilNamed(
+        name,
+        pathParameters: pathParameters,
+        orGo: orGo,
+      );
+
+  /// Pops the top-most route if possible, otherwise goes to the current
+  /// page's parent.
+  ///
+  /// Made for web: after a refresh, a typed URL or a deep link there may be
+  /// nothing to pop, but the user still expects "back" to go up, e.g. from a
+  /// job's details to the jobs list.
+  ///
+  /// The parent is the route's [PlayxRoute.parentLocation] if set, otherwise
+  /// the nearest shorter path that matches a route (`/jobs/5` → `/jobs`).
+  /// Returns `false` if there was nothing to pop and no parent.
+  ///
+  /// Example usage:
+  /// ```dart
+  /// PlayxNavigation.back();
+  /// ```
+  static bool back<T extends Object?>([T? result]) => _router.back<T>(result);
+
+  /// Whether [back] can do something: pop, or go to a parent.
+  static bool get canGoBack => _router.canGoBack;
+
+  /// The location [back] goes to when there is nothing to pop, or `null`.
+  /// See [back].
+  static String? get parentLocation => _router.parentLocation;
 
   /// Returns `true` if there are two or more routes in the navigation stack that can be popped.
   ///

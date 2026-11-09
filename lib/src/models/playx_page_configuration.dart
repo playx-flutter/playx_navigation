@@ -94,7 +94,7 @@ class PlayxPageConfiguration<T> {
 
   /// The key associated with this page.
   ///
-  /// This key will be used for comparing pages in [canUpdate].
+  /// This key will be used for comparing pages in `Page.canUpdate`.
   final LocalKey? key;
 
   /// Restoration ID to save and restore the state of the [Route] configured by

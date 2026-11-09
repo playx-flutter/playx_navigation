@@ -1,0 +1,46 @@
+# Playx Navigation
+
+> Playx Navigation (`playx_navigation`, version 3.0.0) is a Flutter package built on go_router. It adds a per-page lifecycle (onEnter, onHidden, onReEnter, onExit) for every route, page-scoped controllers, route guards, web-friendly navigation (back to parent, popUntil, breadcrumbs, browser tab titles) and navigation without a BuildContext. It re-exports go_router, so `import 'package:playx_navigation/playx_navigation.dart';` is enough.
+
+Key facts for code generation:
+
+- Requirements: Flutter >=3.27.0, Dart >=3.6.0, go_router ^17.5.0 (re-exported).
+- Use `PlayxRoute<T>` instead of `GoRoute` and `PlayxShellBranch<T>` for tabs. Both accept `binding`, `controller`, `disposeController`, `guards`, `breadcrumb`, `parentLocation`, `loadingWidget`, `shellBuilder`, `waitForBinding`, `initTransitionDuration`, `errorBuilder`, `enterTimeout`, `transition`, `pageConfiguration`. Provide exactly one of `builder` or `initBuilder`.
+- Wrap the app in `PlayxNavigationBuilder(router: router, builder: (context) => MaterialApp.router(routerConfig: router))`. This boots navigation and runs every binding's `onInitApp`. Without it call `await PlayxNavigation.boot(router: router)`.
+- A `PlayxBinding` must implement `onEnter(BuildContext, GoRouterState)`. `onInitApp`, `onHidden`, `onReEnter(context, state, wasPoppedAndReentered)`, `onExit`, `redirect` and `breadcrumb` are optional.
+- The lifecycle belongs to each page instance (not each route): stacked pages of the same route each get their own onEnter/onExit. On pop, the revealed page gets onReEnter immediately and the popped page gets onExit after the exit animation. Replace or a changed path parameter ends the old page's lifecycle before the new onEnter.
+- `PlayxScope.of(context)` returns the page's scope (unique `id`, `put`/`get`, `onDispose`). Use `scope.id` as a GetX tag so stacked pages do not share controllers.
+- Route controllers: `PlayxRoute<MyController>(controller: (context, state) => MyController(), disposeController: (c) => c.onClose(), builder: ...)`. Views extend `PlayxView<MyController>` and implement `buildView(context, controller)`, or use `context.controller<MyController>()`. Controllers can mix in `PlayxPageLifecycle` (onPageEnter, onPageHidden, onPageReEnter, onPageExit).
+- Navigate with the static `PlayxNavigation`: `to`, `toNamed` (push), `offAll`, `offAllNamed` (go, replaces the stack), `offAndTo`, `offAndToNamed` (replace the top page; the returned Future completes when the new page is popped, so do not await it just to wait for navigation), `pop`, `maybePop`, `back`, `popOrGo`, `popUntil`, `goToBranch`.
+- On web `state.extra` is null after refresh or deep links: load by id. Use `state.extraAs<T>()`, `state.intPathParam('id')`, `state.intQueryParam('page')`. Use `PlayxNavigation.back()` / `PlayxBackButton` so back works when nothing can be popped.
+- Breadcrumbs: label routes with `breadcrumb: (context, state) => 'Label'`, show them with `PlayxBreadcrumbs(mode: PlayxBreadcrumbMode.hierarchy | shellBranch | history)`. Browser tab titles: `PlayxNavigationBuilder(pageTitle: PlayxPageTitle(appName: '...'))`.
+- Redirect order for a route: `guards` (PlayxGuard), then the binding's `redirect`, then the route's `redirect`.
+- Do not call `PlayxNavigation` before boot, and do not await `offAndTo` expecting it to finish when the replacement happens.
+
+## Documentation
+
+- [Overview](https://playx-flutter.github.io/playx_navigation/): features and where to start
+- [Installation and setup](https://playx-flutter.github.io/playx_navigation/getting-started/): step-by-step setup
+- [Choosing an approach](https://playx-flutter.github.io/playx_navigation/choosing-an-approach/): bindings vs scopes vs route controllers
+- [Routes and transitions](https://playx-flutter.github.io/playx_navigation/routes/): PlayxRoute, PlayxShellBranch, transitions
+- [Bindings and lifecycle](https://playx-flutter.github.io/playx_navigation/bindings/): callbacks, guarantees, scenarios
+- [Page configuration](https://playx-flutter.github.io/playx_navigation/page-configuration/): loading, shell builder, init builder
+- [Guards and redirects](https://playx-flutter.github.io/playx_navigation/guards-and-redirects/): PlayxGuard, redirect order
+- [Error handling](https://playx-flutter.github.io/playx_navigation/error-handling/): errorBuilder, enterTimeout
+- [Scopes](https://playx-flutter.github.io/playx_navigation/scopes/): PlayxScope
+- [Route controllers and views](https://playx-flutter.github.io/playx_navigation/controllers-and-views/): PlayxRoute<T>, PlayxView, PlayxPageLifecycle
+- [GetX and other registries](https://playx-flutter.github.io/playx_navigation/state-management-interop/): registerController, findController
+- [PlayxNavigation API](https://playx-flutter.github.io/playx_navigation/navigation-api/): every navigation method
+- [Web](https://playx-flutter.github.io/playx_navigation/web/): refresh, deep links, back, popUntil
+- [Breadcrumbs and page titles](https://playx-flutter.github.io/playx_navigation/breadcrumbs/): PlayxBreadcrumbs, PlayxPageTitle
+- [Testing your app](https://playx-flutter.github.io/playx_navigation/testing/): testing bindings, controllers and guards
+- [Migrating to 3.0](https://playx-flutter.github.io/playx_navigation/migration/): behavior and signature changes
+- [Troubleshooting](https://playx-flutter.github.io/playx_navigation/troubleshooting/): common problems
+
+## Reference
+
+- [API reference (dartdoc)](https://playx-flutter.github.io/playx_navigation/api/index.html)
+- [Full documentation as one file](https://playx-flutter.github.io/playx_navigation/llms-full.txt)
+- [pub.dev](https://pub.dev/packages/playx_navigation)
+- [Source code](https://github.com/playx-flutter/playx_navigation)
+- [Changelog](https://github.com/playx-flutter/playx_navigation/blob/main/CHANGELOG.md)

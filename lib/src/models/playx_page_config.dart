@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+
+import '../routes/playx_page.dart' show PlayxScope;
 
 /// Builder function for route content that includes initialization state.
 ///
@@ -37,7 +41,36 @@ typedef PlayxShellWidgetBuilder = Widget Function(
   Widget child,
 );
 
-/// Global configuration for [PlayxPage] behavior.
+/// Builder function for the widget shown when a binding's `onEnter` fails
+/// (throws) or exceeds its timeout.
+///
+/// - [context]: The [BuildContext] of the route.
+/// - [state]: The [GoRouterState] containing metadata about the current route.
+/// - [error]: The error thrown by `onEnter` (a [TimeoutException] on timeout).
+/// - [stackTrace]: The stack trace of the error.
+/// - [retry]: Call to run the binding's `onEnter` again.
+typedef PlayxErrorWidgetBuilder = Widget Function(
+  BuildContext context,
+  GoRouterState state,
+  Object error,
+  StackTrace stackTrace,
+  VoidCallback retry,
+);
+
+/// Registers or unregisters a route controller of type `T` in an external
+/// registry (e.g. GetX). See [PlayxPageConfig.registerController].
+typedef PlayxControllerRegistrar = void Function<T extends Object>(
+  T controller,
+  PlayxScope scope,
+);
+
+/// Finds a page's controller of type `T` in an external registry (e.g. GetX),
+/// or returns `null`. See [PlayxPageConfig.findController].
+typedef PlayxControllerFinder = T? Function<T extends Object>(
+  PlayxScope scope,
+);
+
+/// Global configuration for `PlayxPage` behavior.
 ///
 /// Provide this to [PlayxNavigationBuilder] to set defaults for all routes.
 /// Individual route settings (on [PlayxRoute]) override these globals.
@@ -92,19 +125,73 @@ class PlayxPageConfig {
   /// Individual routes can override this via [PlayxRoute.initTransitionDuration].
   final Duration? initTransitionDuration;
 
+  /// Default widget builder shown when a binding's `onEnter` throws or times out.
+  ///
+  /// When `null` (and the route doesn't specify one), the error is reported
+  /// through [FlutterError.reportError] and the loading state is kept.
+  ///
+  /// Individual routes can override this via [PlayxRoute.errorBuilder].
+  final PlayxErrorWidgetBuilder? errorBuilder;
+
+  /// Default maximum time to wait for a binding's `onEnter` to complete.
+  ///
+  /// When exceeded, it is treated as an error with a [TimeoutException].
+  /// `null` (default) means no timeout.
+  ///
+  /// Individual routes can override this via [PlayxRoute.enterTimeout].
+  final Duration? enterTimeout;
+
+  /// Called with the route's controller type `T` right after a
+  /// `PlayxRoute<T>(controller: ...)` controller is created, to register it in
+  /// an external registry so `Get.find<T>()`, `GetBuilder<T>`, etc. keep
+  /// working.
+  ///
+  /// ```dart
+  /// registerController: <T extends Object>(T controller, PlayxScope scope) =>
+  ///     Get.put<T>(controller, tag: scope.id),
+  /// ```
+  ///
+  /// Tagging with `scope.id` keeps stacked pages of the same type apart;
+  /// without a tag, `Get.find<T>()` works anywhere, but stacked pages of the
+  /// same type share one registration.
+  final PlayxControllerRegistrar? registerController;
+
+  /// Called with the route's controller type `T` right before a route
+  /// controller is disposed. Mirror of [registerController].
+  ///
+  /// ```dart
+  /// unregisterController: <T extends Object>(T controller, PlayxScope scope) =>
+  ///     Get.delete<T>(tag: scope.id),
+  /// ```
+  final PlayxControllerRegistrar? unregisterController;
+
+  /// Used by `PlayxView<T>` and `context.controller<T>()` when the page's
+  /// scope has no `T`, e.g. when a binding registers controllers in GetX:
+  ///
+  /// ```dart
+  /// findController: <T extends Object>(PlayxScope scope) =>
+  ///     Get.isRegistered<T>(tag: scope.id) ? Get.find<T>(tag: scope.id) : null,
+  /// ```
+  final PlayxControllerFinder? findController;
+
   /// Creates a [PlayxPageConfig] with the specified defaults.
   const PlayxPageConfig({
     this.loadingWidget,
     this.waitForBinding = true,
     this.shellBuilder,
     this.initTransitionDuration,
+    this.errorBuilder,
+    this.enterTimeout,
+    this.registerController,
+    this.unregisterController,
+    this.findController,
   });
 }
 
 /// An [InheritedWidget] that provides [PlayxPageConfig] to descendant widgets.
 ///
 /// This is used internally by [PlayxNavigationBuilder] to propagate global
-/// configuration down to [PlayxPage] instances.
+/// configuration down to `PlayxPage` instances.
 class PlayxPageConfigProvider extends InheritedWidget {
   /// The global page configuration.
   final PlayxPageConfig config;
@@ -120,6 +207,14 @@ class PlayxPageConfigProvider extends InheritedWidget {
   static PlayxPageConfig? of(BuildContext context) {
     return context
         .dependOnInheritedWidgetOfExactType<PlayxPageConfigProvider>()
+        ?.config;
+  }
+
+  /// Like [of], but doesn't register a dependency, so it is safe to call from
+  /// `initState` and from async callbacks.
+  static PlayxPageConfig? read(BuildContext context) {
+    return context
+        .getInheritedWidgetOfExactType<PlayxPageConfigProvider>()
         ?.config;
   }
 

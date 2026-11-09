@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:playx_navigation/playx_navigation.dart';
 
 /// A [PlayxShellBranch] is a [StatefulShellBranch] that is used to create a branch with a single route or multiple routes with [PlayxRoute]s.
-class PlayxShellBranch extends StatefulShellBranch {
+class PlayxShellBranch<T extends Object> extends StatefulShellBranch {
   /// Creates a new [PlayxShellBranch] with a single route.
   ///
   /// Provide either [builder] or [initBuilder], but not both:
@@ -13,6 +13,9 @@ class PlayxShellBranch extends StatefulShellBranch {
   /// The [waitForBinding] controls whether to block the build on `onEnter`.
   /// The [initTransitionDuration] sets the crossfade animation duration.
   /// These only apply when using [builder], not [initBuilder].
+  ///
+  /// Pass [controller] (and optionally [disposeController]) to give the
+  /// branch's page its own controller of type [T]; see [PlayxRoute].
   PlayxShellBranch({
     super.navigatorKey,
     super.initialLocation,
@@ -27,10 +30,17 @@ class PlayxShellBranch extends StatefulShellBranch {
     PlayxPageConfiguration pageConfiguration = const PlayxPageConfiguration(),
     GlobalKey<NavigatorState>? parentNavigatorKey,
     PlayxBinding? binding,
+    PlayxControllerBuilder<T>? controller,
+    void Function(T controller)? disposeController,
     Widget? loadingWidget,
     PlayxShellWidgetBuilder? shellBuilder,
     bool? waitForBinding,
     Duration? initTransitionDuration,
+    List<PlayxGuard> guards = const <PlayxGuard>[],
+    PlayxParentLocation? parentLocation,
+    PlayxBreadcrumbLabelBuilder? breadcrumb,
+    PlayxErrorWidgetBuilder? errorBuilder,
+    Duration? enterTimeout,
     GoRouterRedirect? redirect,
     ExitCallback? onExit,
     List<RouteBase> routes = const [],
@@ -44,7 +54,7 @@ class PlayxShellBranch extends StatefulShellBranch {
           'Use builder for library-managed loading, or initBuilder for full control.',
         ),
         super(routes: [
-          PlayxRoute(
+          PlayxRoute<T>(
             path: path,
             name: name,
             builder: builder,
@@ -53,10 +63,17 @@ class PlayxShellBranch extends StatefulShellBranch {
             pageConfiguration: pageConfiguration,
             parentNavigatorKey: parentNavigatorKey,
             binding: binding,
+            controller: controller,
+            disposeController: disposeController,
             loadingWidget: loadingWidget,
             shellBuilder: shellBuilder,
             waitForBinding: waitForBinding,
             initTransitionDuration: initTransitionDuration,
+            guards: guards,
+            parentLocation: parentLocation,
+            breadcrumb: breadcrumb,
+            errorBuilder: errorBuilder,
+            enterTimeout: enterTimeout,
             redirect: redirect,
             onExit: onExit,
             routes: routes,

@@ -3,9 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
+import '../breadcrumbs/playx_breadcrumb.dart';
+import '../controller/playx_route_controller.dart';
+import '../guards/playx_guard.dart';
 import '../models/playx_page_config.dart';
 import '../models/playx_page_configuration.dart';
 import '../models/playx_page_transition.dart';
+
+/// Computes the parent location of a page for `PlayxNavigation.back()`.
+/// Return `null` to use the automatic parent.
+typedef PlayxParentLocation = String? Function(GoRouterState state);
 
 /// A custom route class extending [GoRoute] that provides additional features
 /// such as custom page transitions, route bindings, and page configuration settings.
@@ -75,6 +82,9 @@ import '../models/playx_page_transition.dart';
 /// - `loadingWidget`: Widget shown while `onEnter` is executing. Only applies with [builder].
 /// - `waitForBinding`: Whether to block the build on `onEnter`. Only applies with [builder].
 /// - `initTransitionDuration`: Duration for crossfade animation. Only applies with [builder].
+/// - `guards`: Optional [PlayxGuard]s evaluated before the route is entered.
+/// - `errorBuilder`: Widget shown when the binding's `onEnter` fails or times out.
+/// - `enterTimeout`: Maximum time to wait for the binding's `onEnter`.
 /// - `redirect`: An optional callback for custom redirection logic.
 /// - `onExit`: An optional callback for handling logic when the route is exited.
 /// - `routes`: A list of nested subroutes. Defaults to an empty list.
@@ -92,9 +102,9 @@ import '../models/playx_page_transition.dart';
 /// If a [redirect] callback is provided, it will handle redirection logic independently of binding lifecycle.
 ///
 /// **Route Lifecycle:**
-/// The binding lifecycle is managed through the [PlayxPage] widget lifecycle
+/// The binding lifecycle is managed through the `PlayxPage` widget lifecycle
 /// and the [PlayxNavigationBuilder] route-change listener — no longer through redirect callbacks.
-class PlayxRoute extends GoRoute {
+class PlayxRoute<T extends Object> extends GoRoute {
   /// An optional [PlayxBinding] instance used to handle route-specific lifecycle events.
   ///
   /// The [binding] allows you to attach custom logic that is executed at different
@@ -160,23 +170,127 @@ class PlayxRoute extends GoRoute {
   /// - Any positive duration: Crossfade with that duration.
   final Duration? initTransitionDuration;
 
+  /// Guards evaluated, in order, before this route (and its sub-routes) is
+  /// entered. The first guard returning a non-null location redirects there.
+  /// Guards run before [redirect].
+  final List<PlayxGuard> guards;
+
+  /// Where `PlayxNavigation.back()` goes when there is nothing to pop, e.g.
+  /// on web after a refresh, a typed URL or a deep link to this page.
+  ///
+  /// Return `null` to fall back to the automatic parent: the nearest shorter
+  /// path that matches a route (`/jobs/5` → `/jobs`). Set this when the
+  /// parent can't be derived from the path, e.g. a top-level `/job/:id` whose
+  /// parent is `/jobs`:
+  ///
+  /// ```dart
+  /// parentLocation: (state) => Paths.jobs,
+  /// ```
+  final PlayxParentLocation? parentLocation;
+
+  /// The label of this route in breadcrumbs (`PlayxBreadcrumbs`,
+  /// `PlayxNavigation.breadcrumbs`). Return `null` to leave it out.
+  ///
+  /// ```dart
+  /// breadcrumb: (context, state) => 'Job #${state.pathParameters['id']}',
+  /// ```
+  ///
+  /// Takes precedence over the binding's `PlayxBinding.breadcrumb`; a page can
+  /// override it at runtime with `PlayxBreadcrumbLabel`.
+  final PlayxBreadcrumbLabelBuilder? breadcrumb;
+
+  /// Builder for the widget shown when the [binding]'s `onEnter` throws or
+  /// exceeds [enterTimeout]. Receives a `retry` callback.
+  ///
+  /// Overrides the global [PlayxPageConfig.errorBuilder].
+  final PlayxErrorWidgetBuilder? errorBuilder;
+
+  /// Maximum time to wait for the [binding]'s `onEnter`. On timeout it is
+  /// handled like any other `onEnter` error.
+  ///
+  /// Overrides the global [PlayxPageConfig.enterTimeout]. `null` means no timeout.
+  final Duration? enterTimeout;
+
+  /// Creates a route.
+  ///
+  /// Pass [controller] (and optionally [disposeController]) to give every page
+  /// of this route its own controller of type [T]: created when the page is
+  /// entered, stored in the page's [PlayxScope], and disposed when it exits.
+  /// Read it with `PlayxView<T>` or `context.controller<T>()`. A binding is
+  /// optional when a controller is set.
   PlayxRoute({
+    required String path,
+    String? name,
+    GoRouterWidgetBuilder? builder,
+    PlayxRouteWidgetBuilder? initBuilder,
+    PlayxPageTransition transition = PlayxPageTransition.cupertino,
+    PlayxPageConfiguration pageConfiguration = const PlayxPageConfiguration(),
+    GlobalKey<NavigatorState>? parentNavigatorKey,
+    PlayxBinding? binding,
+    PlayxControllerBuilder<T>? controller,
+    void Function(T controller)? disposeController,
+    Widget? loadingWidget,
+    PlayxShellWidgetBuilder? shellBuilder,
+    bool? waitForBinding,
+    Duration? initTransitionDuration,
+    List<PlayxGuard> guards = const <PlayxGuard>[],
+    PlayxParentLocation? parentLocation,
+    PlayxBreadcrumbLabelBuilder? breadcrumb,
+    PlayxErrorWidgetBuilder? errorBuilder,
+    Duration? enterTimeout,
+    GoRouterRedirect? redirect,
+    ExitCallback? onExit,
+    List<RouteBase> routes = const <RouteBase>[],
+  }) : this._(
+          path: path,
+          name: name,
+          builder: builder,
+          initBuilder: initBuilder,
+          transition: transition,
+          pageConfiguration: pageConfiguration,
+          parentNavigatorKey: parentNavigatorKey,
+          binding: binding,
+          routeController: controller == null
+              ? null
+              : PlayxRouteController<T>(controller, disposeController),
+          loadingWidget: loadingWidget,
+          shellBuilder: shellBuilder,
+          waitForBinding: waitForBinding,
+          initTransitionDuration: initTransitionDuration,
+          guards: guards,
+          parentLocation: parentLocation,
+          breadcrumb: breadcrumb,
+          errorBuilder: errorBuilder,
+          enterTimeout: enterTimeout,
+          redirect: redirect,
+          onExit: onExit,
+          routes: routes,
+        );
+
+  PlayxRoute._({
     required super.path,
     super.name,
     GoRouterWidgetBuilder? builder,
     PlayxRouteWidgetBuilder? initBuilder,
-    this.transition = PlayxPageTransition.cupertino,
-    this.pageConfiguration = const PlayxPageConfiguration(),
+    required this.transition,
+    required this.pageConfiguration,
     super.parentNavigatorKey,
     this.binding,
+    PlayxRouteController<T>? routeController,
     this.loadingWidget,
     this.shellBuilder,
     this.waitForBinding,
     this.initTransitionDuration,
-    super.redirect,
+    required this.guards,
+    this.parentLocation,
+    this.breadcrumb,
+    this.errorBuilder,
+    this.enterTimeout,
+    GoRouterRedirect? redirect,
     super.onExit,
-    super.routes = const <RouteBase>[],
-  })  : assert(
+    super.routes,
+  })  : hasController = routeController != null,
+        assert(
           builder != null || initBuilder != null,
           'Either builder or initBuilder must be provided.',
         ),
@@ -186,17 +300,22 @@ class PlayxRoute extends GoRoute {
           'Use builder for library-managed loading, or initBuilder for full control.',
         ),
         super(
+          redirect: composeGuards(
+            [...guards, if (binding != null) PlayxBindingGuard(binding)],
+            redirect,
+          ),
           pageBuilder: (ctx, state) {
             final Widget pageChild;
+            final pageBinding = binding ?? routeController?.fallbackBinding;
 
-            if (binding == null) {
-              // No binding — always initialized.
+            if (pageBinding == null) {
+              // No binding or controller — always initialized.
               pageChild = initBuilder != null
                   ? initBuilder(ctx, state, true)
                   : builder!(ctx, state);
             } else {
               pageChild = PlayxPage(
-                binding: binding,
+                binding: pageBinding,
                 state: state,
                 childBuilder: builder,
                 initBuilder: initBuilder,
@@ -204,6 +323,9 @@ class PlayxRoute extends GoRoute {
                 loadingWidget: loadingWidget,
                 waitForBinding: waitForBinding,
                 initTransitionDuration: initTransitionDuration,
+                errorBuilder: errorBuilder,
+                enterTimeout: enterTimeout,
+                controller: routeController,
               );
             }
 
@@ -214,4 +336,7 @@ class PlayxRoute extends GoRoute {
             );
           },
         );
+
+  /// Whether this route creates a controller of type [T] for its pages.
+  final bool hasController;
 }

@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/binding/playx_binding.dart';
-import 'package:playx_navigation/src/binding/playx_page_state.dart';
+import 'package:playx_navigation/src/breadcrumbs/playx_page_title.dart';
 import 'package:playx_navigation/src/models/playx_page_config.dart';
 import 'package:playx_navigation/src/playx_navigation.dart';
 
-import '../routes/playx_route.dart';
-
 /// A widget that initializes and manages the [PlayxNavigation] system.
 ///
-/// The [PlayxNavigationBuilder] widget is responsible for setting up the
-/// [PlayxNavigation] instance and listening to route changes in the
-/// navigation system. It ensures that the navigation system is properly
-/// initialized and provides a way to execute specific logic when navigating
-/// between routes — specifically handling [PlayxBinding.onHidden] and
-/// [PlayxBinding.onReEnter] lifecycle events.
+/// The [PlayxNavigationBuilder] widget is responsible for booting the
+/// [PlayxNavigation] instance (running every [PlayxBinding.onInitApp]) and for
+/// providing the global [PlayxPageConfig] to routes.
 ///
 /// **Global configuration:**
 /// Use the [config] parameter to set default behavior for all routes,
@@ -22,11 +18,9 @@ import '../routes/playx_route.dart';
 /// should block their build on `onEnter` completion.
 ///
 /// **Lifecycle responsibilities:**
-/// - `onHidden`: Fired when the current route is covered by another route
-///   (push, branch switch) but remains in the navigation stack.
-/// - `onReEnter`: Fired when a previously hidden route returns to the foreground
-///   (pop, branch switch back).
-/// - `onEnter` / `onExit`: Handled by [PlayxPage] widget lifecycle, not here.
+/// Each route's [PlayxBinding] lifecycle (`onEnter`, `onHidden`, `onReEnter`,
+/// `onExit`) is managed per page instance by `PlayxPage`, which waits for
+/// boot to finish before calling `onEnter`.
 ///
 /// This widget is typically placed high in the widget tree to wrap the entire
 /// application or the part of the app that relies on navigation.
@@ -62,9 +56,9 @@ class PlayxNavigationBuilder extends StatefulWidget {
   /// called elsewhere in your code.
   final GoRouter? router;
 
-  /// Optional global configuration for all [PlayxPage] instances.
+  /// Optional global configuration for all `PlayxPage` instances.
   ///
-  /// Sets defaults for [loadingWidget], [waitForBinding], and [shellBuilder]
+  /// Sets defaults for `loadingWidget`, `waitForBinding`, and `shellBuilder`
   /// that individual routes can override.
   ///
   /// When not provided, routes use built-in defaults:
@@ -73,11 +67,19 @@ class PlayxNavigationBuilder extends StatefulWidget {
   /// - `shellBuilder`: `null` (no shell)
   final PlayxPageConfig? config;
 
+  /// Optional browser tab title built from the breadcrumb trail.
+  ///
+  /// When set, the title follows the current page: it is updated after every
+  /// navigation and whenever a breadcrumb label changes, using the labels
+  /// declared with `breadcrumb` on routes and bindings.
+  final PlayxPageTitle? pageTitle;
+
   const PlayxNavigationBuilder({
     super.key,
     required this.builder,
     this.router,
     this.config,
+    this.pageTitle,
   });
 
   @override
@@ -85,11 +87,8 @@ class PlayxNavigationBuilder extends StatefulWidget {
 }
 
 class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
-  /// Tracks the previous top route to detect transitions.
-  GoRoute? _previousTopRoute;
-
-  /// Tracks the previous matched location for wasPoppedAndReentered detection.
-  String? _previousMatchedLocation;
+  Listenable? _titleSource;
+  String? _lastTitle;
 
   @override
   void initState() {
@@ -97,112 +96,92 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
     setupRouter();
   }
 
-  /// Initializes the [PlayxNavigation] system and sets up route change listeners.
+  @override
+  void didUpdateWidget(PlayxNavigationBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.router != widget.router) {
+      // A different router: boot it (runs its bindings' onInitApp).
+      _titleSource?.removeListener(_updateTitle);
+      _titleSource = null;
+      _lastTitle = null;
+      setupRouter();
+    } else if (oldWidget.pageTitle != widget.pageTitle) {
+      _lastTitle = null;
+      _attachTitle();
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleSource?.removeListener(_updateTitle);
+    PlayxNavigation.pageTitle = null;
+    super.dispose();
+  }
+
+  /// Starts following the breadcrumb trail for the browser tab title.
+  void _attachTitle() {
+    if (!mounted || !PlayxNavigation.hasRouter) return;
+    if (widget.pageTitle == null) {
+      _titleSource?.removeListener(_updateTitle);
+      _titleSource = null;
+      return;
+    }
+    if (_titleSource == null) {
+      _titleSource = PlayxNavigation.breadcrumbsListenable;
+      _titleSource!.addListener(_updateTitle);
+    }
+    // Wait for the first frame, so the app's Navigator (and Localizations)
+    // exist for labels that need them.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateTitle());
+  }
+
+  void _updateTitle() {
+    final config = widget.pageTitle;
+    if (!mounted || config == null || !PlayxNavigation.hasRouter) return;
+    final context = PlayxNavigation.navigationContext ?? this.context;
+    final items = PlayxNavigation.breadcrumbs(
+      context,
+      mode: config.mode,
+      rootLocation: config.rootLocation,
+    );
+    final title = config.resolve(context, items);
+    if (title == null || title == _lastTitle) return;
+    _lastTitle = title;
+    PlayxNavigation.pageTitle = title;
+    SystemChrome.setApplicationSwitcherDescription(
+      ApplicationSwitcherDescription(label: title),
+    );
+  }
+
+  /// Initializes the [PlayxNavigation] system.
   ///
   /// If a [GoRouter] is provided, this method calls [PlayxNavigation.boot]
   /// which initializes the navigation system and invokes [PlayxBinding.onInitApp]
   /// on all discovered bindings before adding the route change listener.
   Future<void> setupRouter() async {
     if (widget.router != null) {
-      await PlayxNavigation.boot(router: widget.router!);
-    }
-    PlayxNavigation.addRouteChangeListener(_onRouteChanged);
-  }
-
-  /// Callback invoked whenever the route changes.
-  ///
-  /// Detects transitions between routes and fires the appropriate binding
-  /// lifecycle methods:
-  /// - [PlayxBinding.onHidden] on the previous binding when it's covered.
-  /// - [PlayxBinding.onReEnter] on the current binding when it was previously hidden.
-  ///
-  /// Determines [wasPoppedAndReentered] by checking path relationships:
-  /// - If the previous location was a sub-path of the current location,
-  ///   a child route was popped → `true`.
-  /// - Otherwise (branch switch, go navigation) → `false`.
-  void _onRouteChanged() {
-    final currentTopRoute = PlayxNavigation.currentRoute;
-    final currentState = PlayxNavigation.currentState;
-    final currentMatchedLocation = currentState?.matchedLocation;
-
-    final previousTopRoute = _previousTopRoute;
-
-    // Get bindings for previous and current top routes.
-    final previousBinding =
-        previousTopRoute is PlayxRoute ? previousTopRoute.binding : null;
-    final currentBinding =
-        currentTopRoute is PlayxRoute ? currentTopRoute.binding : null;
-
-    // If routes haven't changed, nothing to do.
-    if (previousTopRoute == currentTopRoute) {
-      _previousTopRoute = currentTopRoute;
-      _previousMatchedLocation = currentMatchedLocation;
-      return;
-    }
-
-    // --- Handle the LEAVING route (previous) ---
-    if (previousBinding != null && previousBinding != currentBinding) {
-      final state = previousBinding.currentState;
-      // Only fire onHidden if the binding is currently active (enter or reEnter).
-      // Don't fire if already hidden or exited.
-      if (state == PlayxPageState.enter || state == PlayxPageState.reEnter) {
-        previousBinding.onHidden(context);
-        previousBinding.currentState = PlayxPageState.hidden;
+      try {
+        await PlayxNavigation.boot(router: widget.router!);
+      } catch (error, stackTrace) {
+        // Pages waiting on PlayxNavigation.ensureInitialized receive the same
+        // error and surface it through their error handling.
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'playx_navigation',
+          context: ErrorDescription('while booting PlayxNavigation'),
+        ));
       }
     }
-
-    // --- Handle the ENTERING route (current) ---
-    if (currentBinding != null && currentBinding != previousBinding) {
-      final state = currentBinding.currentState;
-      // If the binding was previously hidden, it's being re-entered.
-      if (state == PlayxPageState.hidden) {
-        // Determine wasPoppedAndReentered:
-        // If the previous matched location is a sub-path of the current one,
-        // it means a child route was popped, revealing this parent route.
-        final wasPoppedAndReentered = _wasChildPopped(
-          previousLocation: _previousMatchedLocation,
-          currentLocation: currentMatchedLocation,
-        );
-
-        currentBinding.onReEnter(
-          context,
-          currentState,
-          wasPoppedAndReentered,
-        );
-        currentBinding.currentState = PlayxPageState.reEnter;
+    if (widget.router == null && widget.pageTitle != null) {
+      // The router is booted elsewhere: follow it once it is ready.
+      try {
+        await PlayxNavigation.ensureInitialized;
+      } catch (_) {
+        return; // The boot error is reported where boot was called.
       }
-      // If the binding state is enter or null, PlayxPage.initState handles onEnter.
-      // We don't fire onReEnter or onEnter here in that case.
     }
-
-    _previousTopRoute = currentTopRoute;
-    _previousMatchedLocation = currentMatchedLocation;
-  }
-
-  /// Determines if a child route was popped (backward navigation).
-  ///
-  /// Returns `true` if the [previousLocation] is a sub-path of [currentLocation],
-  /// meaning a child route was on top and was popped to reveal the current parent.
-  ///
-  /// Returns `false` for branch switches or unrelated navigation where neither
-  /// location is a prefix of the other.
-  bool _wasChildPopped({
-    required String? previousLocation,
-    required String? currentLocation,
-  }) {
-    if (previousLocation == null || currentLocation == null) return false;
-    if (previousLocation == currentLocation) return false;
-
-    // If the previous location starts with the current location,
-    // it means we navigated from a child (deeper path) back to a parent.
-    // e.g., /products/123 → /products
-    return previousLocation.startsWith(currentLocation);
-  }
-
-  @override
-  void dispose() {
-    PlayxNavigation.removeRouteChangeListener(_onRouteChanged);
-    super.dispose();
+    _attachTitle();
   }
 
   @override

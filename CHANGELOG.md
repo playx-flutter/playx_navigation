@@ -1,5 +1,62 @@
 # Changelog
 
+## 3.0.0
+
+The binding lifecycle is now tracked per page instance, which fixes a set of navigation bugs and
+changes a few observable behaviors. This release also adds page scopes, route controllers, web
+helpers, breadcrumbs and browser tab titles. See the
+[migration guide](https://playx-flutter.github.io/playx_navigation/migration/) for details.
+(The unpublished 2.2.0 is included in this release.)
+
+### Breaking changes and behavior changes
+- **Lifecycle per page instance.** `PlayxNavigationBuilder` no longer compares top routes; every `PlayxPage` owns its lifecycle. Observable differences:
+  - `onHidden` / `onReEnter` now also fire for the initial route.
+  - `replace` (`offAndTo`) and changed path parameters (`/item/1` to `/item/2`) end the old page's lifecycle (`onExit` completes) before the new page's `onEnter` starts; `onEnter` receives the new parameters. A binding no longer needs `onReEnter` to refresh its parameters.
+  - Stacked pages of one route, or one binding shared by several routes, each have their own lifecycle.
+  - `onExit` runs after a still-running `onEnter` finishes; lifecycle callbacks of a page never overlap, and on one navigation every `onHidden` starts before any `onEnter` / `onReEnter`.
+  - On pop, the revealed page's `onReEnter` runs immediately and the popped page's `onExit` after its exit animation.
+  - `onEnter` waits for every `onInitApp`.
+  - A failed `onEnter` is reported (or shown by `errorBuilder`) instead of being an unhandled async error, and no `onHidden` / `onReEnter` / `onExit` runs for that page.
+  - `wasPoppedAndReentered` is based on the router's page stack instead of a path-prefix check.
+- **`PlayxNavigation.offAndTo` / `offAndToNamed` are generic and return `Future<T?>`** (they were `Future<void>`). The future completes with the replacing page's result when it is popped, like `to`; it no longer looks like it hangs because of an `async` wrapper. Fire-and-forget calls are unaffected.
+- **`PlayxNavigation.isInitialized` is `false` after a failed boot** (it was `true` because a failed completer counts as completed).
+- `PlayxRoute` and `PlayxShellBranch` are generic (`PlayxRoute<T extends Object>`); existing code infers `Object` and is unaffected.
+- `PlayxBinding.onExit` is optional (no-op by default). Existing overrides are unaffected.
+- `PlayxNavigation.currentState`, `currentRoute` and `currentRouteName` return `null` instead of throwing while go_router shows its error page. Previously this also crashed every page listening to route changes.
+
+### New features
+- **Page scopes (`PlayxScope`)**: every page with a binding or controller gets a scope for its visit, from `onEnter` to `onExit`. `PlayxScope.of(context)` provides a unique `id` (for GetX tags and similar registries), a `put` / `get` container with automatic `dispose`, `onDispose` callbacks that run after `onExit`, and the page's own `pageState`. Controllers of stacked pages (`details/1` over `details/2`, edit over create) no longer overwrite or delete each other. Also `PlayxBinding.activeScopes` to clean up shared resources when the last page leaves, and `PlayxScopeProvider` to reach a page's controllers from dialogs and bottom sheets.
+- **Route controllers**: `PlayxRoute<T>(controller: ..., disposeController: ...)` (and `PlayxShellBranch<T>`) creates one controller per page visit, stores it in the page's scope, and disposes it when the page exits. No binding is needed. Controllers can mix in **`PlayxPageLifecycle`** (`onPageEnter`, `onPageHidden`, `onPageReEnter`, `onPageExit`).
+- **`PlayxView<T>`**: a `GetView<T>`-like base widget with `buildView(context, controller)`, plus `context.controller<T>()` / `maybeController<T>()`. Works for page views and child widgets in any file, with route controllers and with controllers a binding stores in the scope.
+- **GetX interop hooks on `PlayxPageConfig`**: `registerController`, `unregisterController` and `findController`.
+- **Route guards**: `PlayxGuard` and `PlayxRoute.guards`. Guards run in order before the binding's `redirect` and the route's `redirect`; the first non-null location wins. They also protect child routes. `PlayxGuard.from(callback)` creates one inline.
+- **`PlayxBinding.redirect`**: validate parameters before the page is built. Runs only when the binding's own route is the destination.
+- **`onEnter` error handling**: `errorBuilder` (receives the error and a `retry` callback) and `enterTimeout` on `PlayxRoute`, `PlayxShellBranch` and `PlayxPageConfig` (route values override global ones).
+- **Breadcrumbs**: routes and bindings declare labels (`PlayxRoute.breadcrumb`, `PlayxShellBranch.breadcrumb`, `PlayxBinding.breadcrumb`), and pages can set runtime labels from loaded data (`PlayxBreadcrumbLabel`, `PlayxNavigation.setBreadcrumbLabel`). Trail modes: `hierarchy` (with an optional `rootLocation`), `shellBranch` and `history`. Use the customizable `PlayxBreadcrumbs` widget (collapses long trails, "..." opens a menu), `PlayxBreadcrumbsBuilder` for your own widget, or `PlayxNavigation.breadcrumbs(context)` for the data.
+- **Browser tab titles**: `PlayxNavigationBuilder(pageTitle: PlayxPageTitle(appName: ...))` keeps the tab title in sync with the current page using the breadcrumb labels (`Plumbing repair · Jobs · My App`). `PlayxNavigation.pageTitle` exposes the applied title for `MaterialApp.onGenerateTitle`, since `MaterialApp` resets the title when it rebuilds.
+- **`PlayxNavigation.back()`**: pops, or goes to the current page's parent when there is nothing to pop (web refresh, typed URLs, deep links). The parent is the route's new `parentLocation`, or the nearest shorter path that matches a route. Also `canGoBack`, `parentLocation` and a `PlayxBackButton` widget for app bars.
+- **`PlayxNavigation.popUntil` / `popUntilNamed`**: pop back to the page showing a location, with an optional `orGo` fallback for an empty stack.
+- **`PlayxNavigation.popOrGo` / `popOrGoNamed`**: pop, or go to a fallback location.
+- **`GoRouterState` helpers**: `extraAs<T>()`, `intPathParam(name)`, `intQueryParam(name)`, which return `null` instead of throwing.
+- `PlayxNavigation.playxRouter`, `hasRouter`, and `PlayxRouter` helpers (`parentOf`, `stateFor`, `isShellBranchRoot`, `pageStack`, `popToPage`, `stateOrNull`).
+- `PlayxPageState` is now exported.
+
+### Fixes
+- `router.replace` reused the old page's state, so the new binding never ran `onEnter` and the old one never ran `onExit`.
+- Changed path parameters did not re-run `onEnter` with the new parameters.
+- `onExit` was skipped when a page was left while its `onEnter` was still running.
+- `PlayxNavigation.ensureInitialized` awaited before `boot` never completed (`boot` replaced its completer). `boot` now reuses a pending completer, and booting again while a boot is running no longer completes twice.
+- A failed boot is no longer also reported as an unhandled async error.
+- `PlayxNavigationBuilder` did not boot a different router given to the same builder.
+- Guard chains stay synchronous unless a guard returns a `Future`, so routes with bindings or guards don't resolve a frame later.
+
+### Documentation, tests and tooling
+- New documentation site (MkDocs, published to GitHub Pages) with guides for every feature, a migration guide and troubleshooting, plus the dartdoc API reference. `llms.txt` and `llms-full.txt` are published for AI assistants.
+- The README was reorganized around the documentation site.
+- Test suite grown from none to ~190 tests (99% line coverage); the coverage gate in CI is now 90%.
+- CI uses current actions and also analyzes the example app.
+- Updated `go_router` to ^17.5.0 and refreshed dependencies and the example app.
+
 ## 2.1.0
 
 ### New Features

@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
-import 'package:playx_navigation/src/binding/playx_page_state.dart';
 
 /// An abstract class for defining bindings associated with routes in the PlayxNavigation system.
 ///
@@ -65,6 +66,46 @@ abstract class PlayxBinding {
   /// ```
   Future<void> onInitApp() async {}
 
+  /// Validates navigation to this binding's route before the page is built.
+  ///
+  /// Return a location to redirect there instead, or `null` to continue.
+  /// Runs after the route's `guards` and before its `redirect`, and only when
+  /// this binding's route is the destination (not for its sub-routes).
+  ///
+  /// Prefer this over navigating away from [onEnter]: the page is never built
+  /// with missing data, and `onEnter` / `onExit` don't run.
+  ///
+  /// ```dart
+  /// @override
+  /// FutureOr<String?> redirect(BuildContext context, GoRouterState state) {
+  ///   final id = int.tryParse(state.pathParameters['id'] ?? '');
+  ///   return id == null ? '/jobs' : null;
+  /// }
+  /// ```
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) => null;
+
+  /// The breadcrumb label of this binding's route, or `null` to leave it out.
+  ///
+  /// Used by `PlayxBreadcrumbs` / `PlayxNavigation.breadcrumbs`, also for
+  /// ancestor crumbs of pages that aren't on screen. [context] is the context
+  /// of the widget showing the breadcrumbs (localized strings work).
+  ///
+  /// A route's own `breadcrumb` takes precedence. To show loaded data (e.g.
+  /// the job's title), set a runtime label from a callback:
+  ///
+  /// ```dart
+  /// @override
+  /// String? breadcrumb(BuildContext context, GoRouterState state) =>
+  ///     'Job #${state.pathParameters['id']}';
+  ///
+  /// @override
+  /// Future<void> onEnter(BuildContext context, GoRouterState state) async {
+  ///   final job = await repository.getJob(state.intPathParam('id')!);
+  ///   PlayxNavigation.setBreadcrumbLabel(context, job.title);
+  /// }
+  /// ```
+  String? breadcrumb(BuildContext context, GoRouterState state) => null;
+
   /// Called when the route is entered for the first time.
   ///
   /// Use this method for initializing resources, fetching data, or setting up the UI
@@ -107,10 +148,20 @@ abstract class PlayxBinding {
   /// sub-routes of the same parent route using [PlayxNavigation.goToBranch] method.
   /// Instead, [onHidden] is called when the route is hidden.
   ///
-  /// - [context]: The [BuildContext] of the route.
+  /// - [context]: The [BuildContext] of the route. `PlayxScope.of(context)`
+  ///   still returns this page's scope here (it is disposed right after
+  ///   `onExit` completes), so scoped controllers can be cleaned up:
   ///
-  /// This method **must** be implemented by subclasses.
-  Future<void> onExit(BuildContext context);
+  /// ```dart
+  /// @override
+  /// Future<void> onExit(BuildContext context) async {
+  ///   Get.delete<JobDetailsController>(tag: PlayxScope.of(context).id);
+  /// }
+  /// ```
+  ///
+  /// Optional: does nothing by default, e.g. when cleanup is registered with
+  /// [PlayxScope.onDispose] or [PlayxScope.put] in [onEnter].
+  Future<void> onExit(BuildContext context) async {}
 
   /// Called when the route is hidden but not removed from the stack.
   ///
@@ -134,5 +185,24 @@ abstract class PlayxBinding {
   /// - [PlayxPageState.reEnter]: When the route is re-entered after being visited previously.
   /// - [PlayxPageState.hidden]: When the route is temporarily hidden.
   /// - [PlayxPageState.exit]: When the route is exited and removed from the stack.
+  ///
+  /// This field is shared by every page using this binding. When the same
+  /// binding can back several pages at once, use [PlayxScope.pageState] for a
+  /// specific page instead.
   PlayxPageState? currentState;
+
+  /// The scopes of every page currently using this binding (entered, hidden,
+  /// or still entering), oldest first.
+  ///
+  /// A page leaves this list as soon as its visit ends, before [onExit] runs.
+  /// So inside [onExit], an empty list means no other page uses this binding,
+  /// which is useful when the binding manages shared (unscoped) resources:
+  ///
+  /// ```dart
+  /// @override
+  /// Future<void> onExit(BuildContext context) async {
+  ///   if (activeScopes.isEmpty) Get.delete<JobsController>();
+  /// }
+  /// ```
+  List<PlayxScope> get activeScopes => PlayxScope.activeScopesOf(this);
 }

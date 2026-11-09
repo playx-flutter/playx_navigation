@@ -1,0 +1,86 @@
+name: Docs
+
+# Builds the documentation site (MkDocs) and the API reference (dartdoc).
+# Pull requests only build it (to catch broken docs / links early);
+# pushes to main also deploy it to GitHub Pages.
+#
+# One-time setup: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'lib/**'
+      - 'tool/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'lib/**'
+      - 'tool/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build the API reference (dartdoc)
+        run: dart doc --output build/api
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tool/requirements-docs.txt
+
+      - name: Install MkDocs
+        run: pip install -r tool/requirements-docs.txt
+
+      - name: Build llms-full.txt
+        run: python tool/build_llms_full.py
+
+      - name: Build the site
+        run: mkdocs build --strict
+
+      - name: Add the API reference to the site
+        run: cp -R build/api site/api
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
