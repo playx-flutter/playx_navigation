@@ -28,6 +28,8 @@ abstract class PlayxNavigation {
 
   static Completer<void>? _initCompleter;
 
+  static bool _initialized = false;
+
   static final List<PlayxBinding> _bindings = [];
 
   /// Returns an unmodifiable list of all [PlayxBinding] instances discovered
@@ -94,8 +96,7 @@ abstract class PlayxNavigation {
   ///
   /// Returns `true` after [boot] has completed (including all
   /// [PlayxBinding.onInitApp] invocations). Returns `false` otherwise.
-  static bool get isInitialized =>
-      _initCompleter != null && _initCompleter!.isCompleted;
+  static bool get isInitialized => _initialized;
 
   /// Gets the singleton instance of [PlayxRouter].
   ///
@@ -122,14 +123,20 @@ abstract class PlayxNavigation {
   /// returns `true`.
   static Future<void> boot({required GoRouter router}) async {
     // Reset the completer and bindings for fresh initialization (supports re-boot).
-    _initCompleter = Completer<void>();
+    final completer = Completer<void>();
+    _initCompleter = completer;
+    _initialized = false;
     _bindings.clear();
     try {
       _playxRouter = PlayxRouter(router: router);
       await _initializeBindings(router);
-      _initCompleter!.complete();
+      _initialized = true;
+      completer.complete();
     } catch (e, s) {
-      _initCompleter!.completeError(e, s);
+      completer.completeError(e, s);
+      // The error is rethrown to the caller of boot; awaiting
+      // ensureInitialized still receives it, but nobody has to.
+      completer.future.ignore();
       rethrow;
     }
   }
@@ -334,15 +341,20 @@ abstract class PlayxNavigation {
   /// The [name] parameter specifies the name of the new route, and the optional
   /// [extra] parameter can be used to pass additional data to the route.
   ///
+  /// Returns a [Future] that completes with the result of the new route when
+  /// it is popped (like [to]). It does **not** complete when the replacement
+  /// happens, so don't `await` it unless you want to wait for that result.
+  ///
   /// Example usage:
   /// ```dart
-  /// await PlayxNavigation.offAndTo('/profile', extra: {'userId': 123});
+  /// PlayxNavigation.offAndTo('/profile', extra: {'userId': 123});
+  /// final saved = await PlayxNavigation.offAndTo<bool>('/edit');
   /// ```
-  static Future<void> offAndTo(
+  static Future<T?> offAndTo<T>(
     String name, {
     Object? extra,
-  }) async {
-    return _router.offAndTo(
+  }) {
+    return _router.offAndTo<T>(
       name,
       extra: extra,
     );
@@ -404,17 +416,20 @@ abstract class PlayxNavigation {
   /// parameters include [pathParameters], [queryParameters], and [extra] for
   /// passing data to the route.
   ///
+  /// Returns a [Future] that completes with the result of the new route when
+  /// it is popped (see [offAndTo]).
+  ///
   /// Example usage:
   /// ```dart
-  /// await PlayxNavigation.offAndToNamed('profile', pathParameters: {'userId': '123'});
+  /// PlayxNavigation.offAndToNamed('profile', pathParameters: {'userId': '123'});
   /// ```
-  static Future<void> offAndToNamed(
+  static Future<T?> offAndToNamed<T>(
     String name, {
     Map<String, String> pathParameters = const <String, String>{},
     Map<String, dynamic> queryParameters = const <String, dynamic>{},
     Object? extra,
-  }) async {
-    return _router.offAndToNamed(
+  }) {
+    return _router.offAndToNamed<T>(
       name,
       pathParameters: pathParameters,
       queryParameters: queryParameters,

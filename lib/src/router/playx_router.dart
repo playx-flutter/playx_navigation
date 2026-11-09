@@ -113,11 +113,15 @@ class PlayxRouter {
   ///
   /// The [name] parameter specifies the name of the new route, and the optional
   /// [extra] parameter can be used to pass additional data to the route.
-  Future<void> offAndTo(
+  ///
+  /// Returns a [Future] that completes with the result of the new route when
+  /// it is popped (like [to]), so don't `await` it unless you want to wait for
+  /// that.
+  Future<T?> offAndTo<T>(
     String name, {
     Object? extra,
-  }) async {
-    return router.replace(
+  }) {
+    return router.replace<T>(
       name,
       extra: extra,
     );
@@ -166,13 +170,13 @@ class PlayxRouter {
   /// The [name] parameter specifies the name of the new route. Additional
   /// parameters include [pathParameters], [queryParameters], and [extra] for
   /// passing data to the route.
-  Future<void> offAndToNamed(
+  Future<T?> offAndToNamed<T>(
     String name, {
     Map<String, String> pathParameters = const <String, String>{},
     Map<String, dynamic> queryParameters = const <String, dynamic>{},
     Object? extra,
-  }) async {
-    return router.replaceNamed(
+  }) {
+    return router.replaceNamed<T>(
       name,
       pathParameters: pathParameters,
       queryParameters: queryParameters,
