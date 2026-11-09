@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.2.0
+
+### New Features
+- **Route guards**: Added `PlayxGuard` and `PlayxRoute.guards` (also on `PlayxShellBranch`). Guards run in order before the route's `redirect`; the first one returning a location redirects there. Guards also apply to sub-routes.
+  ```dart
+  PlayxRoute(
+    path: '/account',
+    guards: [PlayxGuard.from((context, state) => isLoggedIn ? null : '/login')],
+    builder: (context, state) => AccountPage(),
+  )
+  ```
+- **`onEnter` error handling**: Added `errorBuilder` and `enterTimeout` to `PlayxRoute`, `PlayxShellBranch` and `PlayxPageConfig` (route values override global ones). If `onEnter` throws or times out, `errorBuilder` receives the error and a `retry` callback. Without an `errorBuilder`, the error is reported via `FlutterError.reportError` instead of being an unhandled async error, and the loading state is kept.
+
+### Fixes
+- `onHidden` / `onReEnter` are now fired for the initial route; previously the first navigation away from the starting route was not treated as a transition.
+- `PlayxPageState` is now exported.
+
+### Other
+- Added unit/widget tests for the binding lifecycle, error handling and guards.
+- Updated `go_router` to ^17.5.0 and refreshed dependencies and the example app.
+
 ## 2.1.0
 
 ### New Features

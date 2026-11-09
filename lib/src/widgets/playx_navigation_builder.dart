@@ -106,6 +106,11 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
     if (widget.router != null) {
       await PlayxNavigation.boot(router: widget.router!);
     }
+    if (!mounted) return;
+    // Record the initial route so the first navigation away from it is seen
+    // as a transition (otherwise onHidden/onReEnter would be skipped for it).
+    _previousTopRoute = PlayxNavigation.currentRoute;
+    _previousMatchedLocation = PlayxNavigation.currentState?.matchedLocation;
     PlayxNavigation.addRouteChangeListener(_onRouteChanged);
   }
 

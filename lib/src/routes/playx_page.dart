@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
-import 'package:playx_navigation/src/binding/playx_page_state.dart';
 import 'package:playx_navigation/src/models/playx_page_config.dart';
 
 /// An internal widget that wraps a route's content and manages the
@@ -80,6 +81,14 @@ class PlayxPage extends StatefulWidget {
   /// - Any positive duration: Crossfade animation with that duration.
   final Duration? initTransitionDuration;
 
+  /// Builder for the widget shown when `onEnter` throws or times out.
+  /// Overrides the global [PlayxPageConfig.errorBuilder].
+  final PlayxErrorWidgetBuilder? errorBuilder;
+
+  /// Maximum time to wait for `onEnter`. Overrides the global
+  /// [PlayxPageConfig.enterTimeout].
+  final Duration? enterTimeout;
+
   const PlayxPage({
     super.key,
     required this.binding,
@@ -90,6 +99,8 @@ class PlayxPage extends StatefulWidget {
     this.loadingWidget,
     this.waitForBinding,
     this.initTransitionDuration,
+    this.errorBuilder,
+    this.enterTimeout,
   }) : assert(
           childBuilder != null || initBuilder != null,
           'Either childBuilder or initBuilder must be provided.',
@@ -102,6 +113,11 @@ class PlayxPage extends StatefulWidget {
 class _PlayxPageState extends State<PlayxPage> {
   bool _initialized = false;
   bool _listenerAdded = false;
+  Object? _error;
+  StackTrace? _stackTrace;
+
+  /// Incremented on every `onEnter` attempt so stale attempts are ignored.
+  int _attempt = 0;
 
   @override
   void initState() {
@@ -141,14 +157,60 @@ class _PlayxPageState extends State<PlayxPage> {
   }
 
   /// Fires `onEnter` on the binding and marks the page as initialized.
+  ///
+  /// If `onEnter` throws or exceeds the configured timeout, the error is
+  /// stored (and reported when no error builder handles it) instead of being
+  /// left as an unhandled async error.
   Future<void> _performOnEnter() async {
+    final attempt = ++_attempt;
     widget.binding.currentState = PlayxPageState.enter;
-    await widget.binding.onEnter(context, widget.state);
-    if (mounted) {
+    final timeout = widget.enterTimeout ??
+        PlayxPageConfigProvider.of(context)?.enterTimeout;
+    try {
+      var future = Future<void>.sync(
+        () => widget.binding.onEnter(context, widget.state),
+      );
+      if (timeout != null) future = future.timeout(timeout);
+      await future;
+    } catch (error, stackTrace) {
+      if (!mounted || attempt != _attempt) return;
+      // onEnter did not complete, so the page is not entered.
+      widget.binding.currentState = PlayxPageState.pending;
+      final hasErrorBuilder = widget.errorBuilder != null ||
+          PlayxPageConfigProvider.of(context)?.errorBuilder != null;
+      if (!hasErrorBuilder) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'playx_navigation',
+          context: ErrorDescription(
+            'while running ${widget.binding.runtimeType}.onEnter',
+          ),
+        ));
+      }
+      setState(() {
+        _error = error;
+        _stackTrace = stackTrace;
+      });
+      return;
+    }
+    if (mounted && attempt == _attempt) {
       setState(() {
         _initialized = true;
+        _error = null;
+        _stackTrace = null;
       });
     }
+  }
+
+  /// Runs `onEnter` again after a failure.
+  void _retry() {
+    if (_error == null) return;
+    setState(() {
+      _error = null;
+      _stackTrace = null;
+    });
+    _performOnEnter();
   }
 
   void _removeListener() {
@@ -188,6 +250,21 @@ class _PlayxPageState extends State<PlayxPage> {
 
   @override
   Widget build(BuildContext context) {
+    // --- onEnter failed: show the error widget if one is configured ---
+    if (_error != null) {
+      final errorBuilder = widget.errorBuilder ??
+          PlayxPageConfigProvider.of(context)?.errorBuilder;
+      if (errorBuilder != null) {
+        return errorBuilder(
+          context,
+          widget.state,
+          _error!,
+          _stackTrace ?? StackTrace.empty,
+          _retry,
+        );
+      }
+    }
+
     // --- Init-aware builder: user has full control ---
     if (widget.initBuilder != null) {
       return widget.initBuilder!(context, widget.state, _initialized);

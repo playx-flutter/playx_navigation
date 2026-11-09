@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
 import 'package:playx_navigation/playx_navigation.dart';
-import 'package:playx_navigation/src/binding/playx_page_state.dart';
 
 /// An abstract class for defining bindings associated with routes in the PlayxNavigation system.
 ///

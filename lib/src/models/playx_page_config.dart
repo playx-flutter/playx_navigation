@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -35,6 +37,22 @@ typedef PlayxShellWidgetBuilder = Widget Function(
   GoRouterState state,
   bool isInitialized,
   Widget child,
+);
+
+/// Builder function for the widget shown when a binding's `onEnter` fails
+/// (throws) or exceeds its timeout.
+///
+/// - [context]: The [BuildContext] of the route.
+/// - [state]: The [GoRouterState] containing metadata about the current route.
+/// - [error]: The error thrown by `onEnter` (a [TimeoutException] on timeout).
+/// - [stackTrace]: The stack trace of the error.
+/// - [retry]: Call to run the binding's `onEnter` again.
+typedef PlayxErrorWidgetBuilder = Widget Function(
+  BuildContext context,
+  GoRouterState state,
+  Object error,
+  StackTrace stackTrace,
+  VoidCallback retry,
 );
 
 /// Global configuration for [PlayxPage] behavior.
@@ -92,12 +110,30 @@ class PlayxPageConfig {
   /// Individual routes can override this via [PlayxRoute.initTransitionDuration].
   final Duration? initTransitionDuration;
 
+  /// Default widget builder shown when a binding's `onEnter` throws or times out.
+  ///
+  /// When `null` (and the route doesn't specify one), the error is reported
+  /// through [FlutterError.reportError] and the loading state is kept.
+  ///
+  /// Individual routes can override this via [PlayxRoute.errorBuilder].
+  final PlayxErrorWidgetBuilder? errorBuilder;
+
+  /// Default maximum time to wait for a binding's `onEnter` to complete.
+  ///
+  /// When exceeded, it is treated as an error with a [TimeoutException].
+  /// `null` (default) means no timeout.
+  ///
+  /// Individual routes can override this via [PlayxRoute.enterTimeout].
+  final Duration? enterTimeout;
+
   /// Creates a [PlayxPageConfig] with the specified defaults.
   const PlayxPageConfig({
     this.loadingWidget,
     this.waitForBinding = true,
     this.shellBuilder,
     this.initTransitionDuration,
+    this.errorBuilder,
+    this.enterTimeout,
   });
 }
 

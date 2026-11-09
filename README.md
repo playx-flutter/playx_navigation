@@ -482,6 +482,43 @@ PlayxRoute(
 
 Set to `Duration.zero` to explicitly disable animation for a specific route when a global duration is set.
 
+## Route Guards
+
+Attach `PlayxGuard`s to a route to redirect before it is entered. Guards run in order, before the route's own `redirect`; the first non-null location wins. They also apply to sub-routes.
+
+```dart
+class AuthGuard extends PlayxGuard {
+  const AuthGuard();
+
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+      AuthService.isLoggedIn ? null : '/login';
+}
+
+PlayxRoute(
+  path: '/account',
+  guards: [AuthGuard()], // or PlayxGuard.from((context, state) => ...)
+  builder: (context, state) => AccountPage(),
+)
+```
+
+## Handling `onEnter` Errors
+
+If a binding's `onEnter` throws or exceeds `enterTimeout`, show an error UI with a retry option:
+
+```dart
+PlayxRoute(
+  path: '/products',
+  binding: ProductsBinding(),
+  enterTimeout: const Duration(seconds: 10),
+  errorBuilder: (context, state, error, stackTrace, retry) =>
+      ErrorView(message: '$error', onRetry: retry),
+  builder: (context, state) => ProductsPage(),
+)
+```
+
+Set `errorBuilder` / `enterTimeout` on `PlayxPageConfig` for a global default. Without an `errorBuilder`, the error is reported through `FlutterError.reportError` and the loading state is kept.
+
 ##  Configuring Routes
 
 ###  Advanced Routing and Custom Transitions with `PlayxRoute`

@@ -3,8 +3,15 @@ library;
 export 'package:go_router/go_router.dart';
 
 export 'src/binding/playx_binding.dart';
+export 'src/binding/playx_page_state.dart';
 export 'src/models/playx_page_config.dart'
-    show PlayxPageConfig, PlayxRouteWidgetBuilder, PlayxShellWidgetBuilder;
+    show
+        PlayxErrorWidgetBuilder,
+        PlayxPageConfig,
+        PlayxRouteWidgetBuilder,
+        PlayxShellWidgetBuilder;
+
+export 'src/guards/playx_guard.dart';
 export 'src/models/playx_page_configuration.dart';
 export 'src/models/playx_page_transition.dart';
 export 'src/playx_navigation.dart';

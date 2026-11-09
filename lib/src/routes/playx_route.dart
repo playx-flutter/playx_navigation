@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:playx_navigation/src/routes/playx_page.dart';
 
 import '../binding/playx_binding.dart';
+import '../guards/playx_guard.dart';
 import '../models/playx_page_config.dart';
 import '../models/playx_page_configuration.dart';
 import '../models/playx_page_transition.dart';
@@ -75,6 +76,9 @@ import '../models/playx_page_transition.dart';
 /// - `loadingWidget`: Widget shown while `onEnter` is executing. Only applies with [builder].
 /// - `waitForBinding`: Whether to block the build on `onEnter`. Only applies with [builder].
 /// - `initTransitionDuration`: Duration for crossfade animation. Only applies with [builder].
+/// - `guards`: Optional [PlayxGuard]s evaluated before the route is entered.
+/// - `errorBuilder`: Widget shown when the binding's `onEnter` fails or times out.
+/// - `enterTimeout`: Maximum time to wait for the binding's `onEnter`.
 /// - `redirect`: An optional callback for custom redirection logic.
 /// - `onExit`: An optional callback for handling logic when the route is exited.
 /// - `routes`: A list of nested subroutes. Defaults to an empty list.
@@ -160,6 +164,23 @@ class PlayxRoute extends GoRoute {
   /// - Any positive duration: Crossfade with that duration.
   final Duration? initTransitionDuration;
 
+  /// Guards evaluated, in order, before this route (and its sub-routes) is
+  /// entered. The first guard returning a non-null location redirects there.
+  /// Guards run before [redirect].
+  final List<PlayxGuard> guards;
+
+  /// Builder for the widget shown when the [binding]'s `onEnter` throws or
+  /// exceeds [enterTimeout]. Receives a `retry` callback.
+  ///
+  /// Overrides the global [PlayxPageConfig.errorBuilder].
+  final PlayxErrorWidgetBuilder? errorBuilder;
+
+  /// Maximum time to wait for the [binding]'s `onEnter`. On timeout it is
+  /// handled like any other `onEnter` error.
+  ///
+  /// Overrides the global [PlayxPageConfig.enterTimeout]. `null` means no timeout.
+  final Duration? enterTimeout;
+
   PlayxRoute({
     required super.path,
     super.name,
@@ -173,7 +194,10 @@ class PlayxRoute extends GoRoute {
     this.shellBuilder,
     this.waitForBinding,
     this.initTransitionDuration,
-    super.redirect,
+    this.guards = const <PlayxGuard>[],
+    this.errorBuilder,
+    this.enterTimeout,
+    GoRouterRedirect? redirect,
     super.onExit,
     super.routes = const <RouteBase>[],
   })  : assert(
@@ -186,6 +210,7 @@ class PlayxRoute extends GoRoute {
           'Use builder for library-managed loading, or initBuilder for full control.',
         ),
         super(
+          redirect: composeGuards(guards, redirect),
           pageBuilder: (ctx, state) {
             final Widget pageChild;
 
@@ -204,6 +229,8 @@ class PlayxRoute extends GoRoute {
                 loadingWidget: loadingWidget,
                 waitForBinding: waitForBinding,
                 initTransitionDuration: initTransitionDuration,
+                errorBuilder: errorBuilder,
+                enterTimeout: enterTimeout,
               );
             }
 
