@@ -99,7 +99,13 @@ class _PlayxNavigationBuilderState extends State<PlayxNavigationBuilder> {
   @override
   void didUpdateWidget(PlayxNavigationBuilder oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.pageTitle != widget.pageTitle) {
+    if (oldWidget.router != widget.router) {
+      // A different router: boot it (runs its bindings' onInitApp).
+      _titleSource?.removeListener(_updateTitle);
+      _titleSource = null;
+      _lastTitle = null;
+      setupRouter();
+    } else if (oldWidget.pageTitle != widget.pageTitle) {
       _lastTitle = null;
       _attachTitle();
     }

@@ -639,6 +639,31 @@ void main() {
     });
   });
 
+  group('maintainState', () {
+    testWidgets('false: a covered page exits and enters again when revealed',
+        (tester) async {
+      final home = GatedBinding('home')..gate.complete();
+      final router = GoRouter(routes: [
+        PlayxRoute(
+          path: '/',
+          binding: home,
+          pageConfiguration: const PlayxPageConfiguration(maintainState: false),
+          builder: (_, __) => const Text('home'),
+        ),
+        PlayxRoute(path: '/next', builder: (_, __) => const Text('next')),
+      ]);
+      await _pump(tester, router);
+      await tester.pumpAndSettle();
+      log.clear();
+
+      unawaited(router.push('/next'));
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(log, ['home:hidden', 'home:exit', 'home:enter']);
+    });
+  });
+
   group('small APIs', () {
     test('PlayxPageLifecycle defaults do nothing', () async {
       final controller = _PlainController();
